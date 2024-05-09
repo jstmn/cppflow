@@ -1,6 +1,10 @@
 # CppFlow
 
-Cartesian path planning with IKFlow
+Cartesian path planning with IKFlow. Open source implementation to the paper ["CppFlow: Generative Inverse Kinematics for Efficient and Robust Cartesian Path Planning"](https://arxiv.org/abs/2309.09102)
+
+[![arxiv.org](https://img.shields.io/badge/cs.RO-%09arXiv%3A2309.09102-red)](https://arxiv.org/abs/2309.09102)
+
+
 
 Note: This project uses the `w,x,y,z` format for quaternions.
 
