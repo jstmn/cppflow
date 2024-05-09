@@ -1,0 +1,14 @@
+robot:        "fetch_arm"
+path_name:    "square"
+
+path_offset_frame: "torso_lift_link"
+path_xyz_offset: [1.1, 0.0, 0.66] 
+path_R_offset: [
+  [1,  0, 0],
+  [0,  1, 0],
+  [0, 0, 1]
+]
+
+obstacle_xyz_offset: [0.0, 0.0, 0.0]
+# name, x, y, z, roll, pitch, yaw, size_x, size_y, size_z
+obstacles: [[x: 0.75, y: 0.0, z: 0.36, roll: 0.0, pitch: 0.0, yaw: 0.0, size_x: 0.70, size_y: 1.40, size_z: 0.72]]

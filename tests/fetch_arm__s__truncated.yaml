@@ -1,0 +1,10 @@
+robot:        "fetch_arm"
+path_name:    "s_truncated"
+
+path_offset_frame: "torso_lift_link"
+path_xyz_offset: [1.0, 0.3, 0.55] 
+path_R_offset: [
+  [1,  0, 0],
+  [0,  1, 0],
+  [0, 0, 1]
+]

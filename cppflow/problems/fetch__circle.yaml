@@ -1,0 +1,16 @@
+robot:     "fetch"
+path_name: "circle"
+
+path_offset_frame: "torso_lift_link"
+path_xyz_offset: [0.9, 0.25, 0.46] 
+path_R_offset: [
+  [1,  0, 0],
+  [0,  1, 0],
+  [0, 0, 1]
+]
+
+obstacle_xyz_offset: [0.0, 0.0, 0.0]
+obstacles: [[x: 0.4, y: 0.4, z: 0.825, roll: 0.0, pitch: 0.0, yaw: 0.0, size_x: 0.3, size_y: 0.05, size_z: 0.8],
+            [x: 0.4, y: -0.4, z: 0.825, roll: 0.0, pitch: 0.0, yaw: 0.0, size_x: 0.3, size_y: 0.05, size_z: 0.8],
+            [x: 0.4, y: 0.0, z: 1.225, roll: 0.0, pitch: 0.0, yaw: 0.0, size_x: 0.3, size_y: 0.85, size_z: 0.05],
+            [x: 0.4, y: 0.0, z: 0.425, roll: 0.0, pitch: 0.0, yaw: 0.0, size_x: 0.3, size_y: 0.85, size_z: 0.05]]

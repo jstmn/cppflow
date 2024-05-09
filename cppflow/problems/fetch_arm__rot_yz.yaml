@@ -1,0 +1,6 @@
+robot: "fetch_arm"
+path_name: "rot_yz"
+
+path_offset_frame: "torso_lift_link"
+path_xyz_offset: [0.8, 0.0, 0.35]
+path_R_offset: [[1, 0, 0], [0, 1, 0], [0, 0, 1]]

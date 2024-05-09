@@ -1,0 +1,22 @@
+robot: "panda"
+path_name: "1cube"
+
+path_offset_frame: "world"
+path_xyz_offset: [0, 0.5421984559194368, 0.7885155964931997]
+path_R_offset: [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+
+obstacle_xyz_offset: [0, 0, 0]
+obstacles:
+    [
+        [
+            size_x: 0.25,
+            size_y: 0.25,
+            size_z: 0.25,
+            x: 0.0,
+            y: 0.2,
+            z: 0.7,
+            roll: 0.0,
+            pitch: 0.0,
+            yaw: 0.0,
+        ],
+    ]
