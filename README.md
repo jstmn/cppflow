@@ -5,7 +5,6 @@ Cartesian path planning with IKFlow. Open source implementation to the paper ["C
 [![arxiv.org](https://img.shields.io/badge/cs.RO-%09arXiv%3A2309.09102-red)](https://arxiv.org/abs/2309.09102)
 
 
-
 Note: This project uses the `w,x,y,z` format for quaternions.
 
 ## Installation
@@ -42,4 +41,22 @@ python scripts/evaluate.py --planner CppFlowPlanner --problem=fetch_arm__circle 
 Recreate the results from the paper:
 ``` bash
 python scripts/benchmark.py --planner_name=CppFlowPlanner
+```
+
+
+
+## Citation
+
+```
+@INPROCEEDINGS{10611724,
+    author={Morgan, Jeremy and Millard, David and Sukhatme, Gaurav S.},
+    booktitle={2024 IEEE International Conference on Robotics and Automation (ICRA)}, 
+    title={CppFlow: Generative Inverse Kinematics for Efficient and Robust Cartesian Path Planning}, 
+    year={2024},
+    volume={},
+    number={},
+    pages={12279-12785},
+    keywords={Adaptation models;Generative AI;Graphics processing units;Kinematics;Programming;Trajectory;Planning},
+    doi={10.1109/ICRA57147.2024.10611724}
+}
 ```
