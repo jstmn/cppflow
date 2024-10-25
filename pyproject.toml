@@ -14,9 +14,9 @@ build-backend = "poetry.core.masonry.api"
 line-length = 120
 
 [tool.poetry.dependencies]
-python = ">=3.8.0,<=3.8.19"
-jrl = { git = "https://github.com/jstmn/jrl.git", rev = "590234f0f5275a4568a1b0b779b9e36536d5789d" }
-ikflow = { git = "https://github.com/jstmn/ikflow.git", rev = "36d0bcded760d19320a4fe0f051532a6cb5f2816" }
+python = ">=3.8.0,<3.11"
+jrl = { git = "https://github.com/jstmn/jrl.git", rev = "ebb937d2189369cce5eace9b1f83afd39df32176" }
+ikflow = { git = "https://github.com/jstmn/ikflow.git", rev = "b45c92b4147400bdb45dbabfd7169e62c9c0d187" }
 matplotlib = "3.7.0"
 psutil = "5.9.8"
 
