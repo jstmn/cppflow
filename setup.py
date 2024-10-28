@@ -26,7 +26,7 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            'subscriber = cppflow.scripts.ros2_subscriber:main',
+            'ros2_subscriber = cppflow.scripts.ros2_subscriber:main',
         ],
     },
     dependency_links=[

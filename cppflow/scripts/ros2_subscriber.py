@@ -9,7 +9,7 @@ class SubscriberNode(Node):
         super().__init__('listener_node')  # Node name
         self.subscription = self.create_subscription(
             String,         # Message type
-            'topic_name',   # Topic name (update with the correct topic)
+            'cppflow_planning_query',   # Topic name (update with the correct topic)
             self.listener_callback,
             10              # QoS (Queue size)
         )
