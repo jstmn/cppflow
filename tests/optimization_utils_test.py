@@ -127,32 +127,34 @@ class OptimizationUtilsTest(unittest.TestCase):
         set_seed()
 
         # input
-        r_in = torch.tensor([
-            [0.5],  # prismatic
-            [0.1],
-            [1.6],
-            [0.1],
-            [0.1],
-            [0.1],
-            [0.1],
-            [0.1],  # end of config 1
-            [-0.4],  # prismatic
-            [1.7],
-            [-1.7],
-            [0.1],
-            [0.1],
-            [0.1],
-            [0.1],
-            [0.1],  # end of config 1
-            [0.2],  # prismatic
-            [0.01],
-            [0.1],
-            [0.1],
-            [0.1],
-            [0.1],
-            [0.1],
-            [0.1],  # end of config 3
-        ])
+        r_in = torch.tensor(
+            [
+                [0.5],  # prismatic
+                [0.1],
+                [1.6],
+                [0.1],
+                [0.1],
+                [0.1],
+                [0.1],
+                [0.1],  # end of config 1
+                [-0.4],  # prismatic
+                [1.7],
+                [-1.7],
+                [0.1],
+                [0.1],
+                [0.1],
+                [0.1],
+                [0.1],  # end of config 1
+                [0.2],  # prismatic
+                [0.01],
+                [0.1],
+                [0.1],
+                [0.1],
+                [0.1],
+                [0.1],
+                [0.1],  # end of config 3
+            ]
+        )
         J_in = torch.ones((24, 32))
         mjac_threshold_m = 0.25
         mjac_threshold_rad = 1.5
@@ -166,32 +168,34 @@ class OptimizationUtilsTest(unittest.TestCase):
         J_expected[9, :] = 1.0
         J_expected[10, :] = 1.0
 
-        r_expected = torch.tensor([
-            [0.5],  # prismatic
-            [0.1 / 2],
-            [1.6],
-            [0.1 / 2],
-            [0.1 / 2],
-            [0.1 / 2],
-            [0.1 / 2],
-            [0.1 / 2],  # end of config 1
-            [-0.4],  # prismatic
-            [1.7],
-            [-1.7],
-            [0.1 / 2],
-            [0.1 / 2],
-            [0.1 / 2],
-            [0.1 / 2],
-            [0.1 / 2],  # end of config 1
-            [0.2 / 2],  # prismatic
-            [0.01 / 2],
-            [0.1 / 2],
-            [0.1 / 2],
-            [0.1 / 2],
-            [0.1 / 2],
-            [0.1 / 2],
-            [0.1 / 2],  # end of config 3
-        ])
+        r_expected = torch.tensor(
+            [
+                [0.5],  # prismatic
+                [0.1 / 2],
+                [1.6],
+                [0.1 / 2],
+                [0.1 / 2],
+                [0.1 / 2],
+                [0.1 / 2],
+                [0.1 / 2],  # end of config 1
+                [-0.4],  # prismatic
+                [1.7],
+                [-1.7],
+                [0.1 / 2],
+                [0.1 / 2],
+                [0.1 / 2],
+                [0.1 / 2],
+                [0.1 / 2],  # end of config 1
+                [0.2 / 2],  # prismatic
+                [0.01 / 2],
+                [0.1 / 2],
+                [0.1 / 2],
+                [0.1 / 2],
+                [0.1 / 2],
+                [0.1 / 2],
+                [0.1 / 2],  # end of config 3
+            ]
+        )
         invalid_row_idxs_expected = torch.tensor(
             [1, 0, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], dtype=torch.bool  # q1  # q2
         )
@@ -216,32 +220,34 @@ class OptimizationUtilsTest(unittest.TestCase):
         """Test that _scale_down_rows_from_r_J_differencing_below_error() works correctly with shift_invalid_to_threshold=True"""
 
         # input
-        r_in = torch.tensor([
-            [0.5],  # prismatic
-            [0.1],
-            [1.6],
-            [0.1],
-            [0.1],
-            [0.1],
-            [0.1],
-            [0.1],  # end of config 1
-            [-0.4],  # prismatic
-            [1.7],
-            [-1.7],
-            [0.1],
-            [0.1],
-            [0.1],
-            [0.1],
-            [0.1],  # end of config 1
-            [0.2],  # prismatic
-            [0.01],
-            [0.1],
-            [0.1],
-            [0.1],
-            [0.1],
-            [0.1],
-            [0.1],  # end of config 3
-        ])
+        r_in = torch.tensor(
+            [
+                [0.5],  # prismatic
+                [0.1],
+                [1.6],
+                [0.1],
+                [0.1],
+                [0.1],
+                [0.1],
+                [0.1],  # end of config 1
+                [-0.4],  # prismatic
+                [1.7],
+                [-1.7],
+                [0.1],
+                [0.1],
+                [0.1],
+                [0.1],
+                [0.1],  # end of config 1
+                [0.2],  # prismatic
+                [0.01],
+                [0.1],
+                [0.1],
+                [0.1],
+                [0.1],
+                [0.1],
+                [0.1],  # end of config 3
+            ]
+        )
         J_in = torch.ones((24, 32))
         mjac_threshold_m = 0.25
         mjac_threshold_rad = 1.5
@@ -255,32 +261,34 @@ class OptimizationUtilsTest(unittest.TestCase):
         J_expected[9, :] = 1.0
         J_expected[10, :] = 1.0
 
-        r_expected = torch.tensor([
-            [0.5 - 0.25],  # prismatic
-            [0.1 / 2],
-            [1.6 - 1.5],
-            [0.1 / 2],
-            [0.1 / 2],
-            [0.1 / 2],
-            [0.1 / 2],
-            [0.1 / 2],  # end of config 1
-            [-0.4 + 0.25],  # prismatic
-            [1.7 - 1.5],
-            [-1.7 + 1.5],
-            [0.1 / 2],
-            [0.1 / 2],
-            [0.1 / 2],
-            [0.1 / 2],
-            [0.1 / 2],  # end of config 1
-            [0.2 / 2],  # prismatic
-            [0.01 / 2],
-            [0.1 / 2],
-            [0.1 / 2],
-            [0.1 / 2],
-            [0.1 / 2],
-            [0.1 / 2],
-            [0.1 / 2],  # end of config 3
-        ])
+        r_expected = torch.tensor(
+            [
+                [0.5 - 0.25],  # prismatic
+                [0.1 / 2],
+                [1.6 - 1.5],
+                [0.1 / 2],
+                [0.1 / 2],
+                [0.1 / 2],
+                [0.1 / 2],
+                [0.1 / 2],  # end of config 1
+                [-0.4 + 0.25],  # prismatic
+                [1.7 - 1.5],
+                [-1.7 + 1.5],
+                [0.1 / 2],
+                [0.1 / 2],
+                [0.1 / 2],
+                [0.1 / 2],
+                [0.1 / 2],  # end of config 1
+                [0.2 / 2],  # prismatic
+                [0.01 / 2],
+                [0.1 / 2],
+                [0.1 / 2],
+                [0.1 / 2],
+                [0.1 / 2],
+                [0.1 / 2],
+                [0.1 / 2],  # end of config 3
+            ]
+        )
         invalid_row_idxs_expected = torch.tensor(
             [1, 0, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], dtype=torch.bool  # q1  # q2
         )
@@ -305,15 +313,17 @@ class OptimizationUtilsTest(unittest.TestCase):
         set_seed()
 
         # input
-        r_in = torch.tensor([
-            [0.5],
-            [0.1],
-            [1.6],
-            [0.1],
-            [0.1],
-            [0.1],
-            [0.1],
-        ])
+        r_in = torch.tensor(
+            [
+                [0.5],
+                [0.1],
+                [1.6],
+                [0.1],
+                [0.1],
+                [0.1],
+                [0.1],
+            ]
+        )
         J_in = torch.ones((7, 14))
         mjac_threshold_m = 0.25
         mjac_threshold_rad = 1.5
@@ -386,24 +396,30 @@ class OptimizationUtilsTest(unittest.TestCase):
         )
         set_seed()
 
-        qs = torch.tensor([
-            [-0.05, 0, 0, 0, 0, 0, 0, 0],
-            [0.25, 0, 0, 0, 0, 0, 0, 0],
-            [0.1, 0, 0, 0, 0, 0, 0, 0],
-        ])
-        target_path = self.fetch.forward_kinematics(
-            torch.tensor([
-                [0.05, 0, 0, 0, 0, 0, 0, 0],
-                [0.2, 0, 0, 0, 0, 0, 0, 0],
+        qs = torch.tensor(
+            [
+                [-0.05, 0, 0, 0, 0, 0, 0, 0],
+                [0.25, 0, 0, 0, 0, 0, 0, 0],
                 [0.1, 0, 0, 0, 0, 0, 0, 0],
-            ])
+            ]
+        )
+        target_path = self.fetch.forward_kinematics(
+            torch.tensor(
+                [
+                    [0.05, 0, 0, 0, 0, 0, 0, 0],
+                    [0.2, 0, 0, 0, 0, 0, 0, 0],
+                    [0.1, 0, 0, 0, 0, 0, 0, 0],
+                ]
+            )
         )
 
-        expected = torch.tensor([
-            [0, 0, 0, 0, 0, 0.1 * 0.25],
-            [0, 0, 0, 0, 0, -0.05 * 0.25],
-            [0, 0, 0, 0, 0, 0 * 0.25],
-        ]).reshape((18, 1))
+        expected = torch.tensor(
+            [
+                [0, 0, 0, 0, 0, 0.1 * 0.25],
+                [0, 0, 0, 0, 0, -0.05 * 0.25],
+                [0, 0, 0, 0, 0, 0 * 0.25],
+            ]
+        ).reshape((18, 1))
         _, r_naive = LmResidualFnsNaive.get_r_and_J(opt_params, self.fetch, qs, target_path)
         _, r = LmResidualFns.get_r_and_J(opt_params, self.fetch, qs, target_path)
         torch.testing.assert_close(expected, r_naive.pose)
@@ -414,38 +430,46 @@ class OptimizationUtilsTest(unittest.TestCase):
         """Test that _scale_down_rows_from_r_J_pose_below_error() is working as expected"""
         set_seed()
         poses = self.fetch.forward_kinematics(
-            torch.tensor([
-                [0.05, 0, 0, 0, 0, 0, 0, 0],
-                [0.2, 0, 0, 0, 0, 0, 0, 0],
-                [0.1, 0, 0, 0, 0, 0, 0, 0],
-                [0.0, 0, 0, 0, 0, 0, 0, 0],
-            ])
+            torch.tensor(
+                [
+                    [0.05, 0, 0, 0, 0, 0, 0, 0],
+                    [0.2, 0, 0, 0, 0, 0, 0, 0],
+                    [0.1, 0, 0, 0, 0, 0, 0, 0],
+                    [0.0, 0, 0, 0, 0, 0, 0, 0],
+                ]
+            )
         )
-        qs = torch.tensor([
-            [0.15, 0, 0, 0, 0, 0, 0, 0],
-            [0.05, 0, 0, 0, 0, 0, 0, 0],
-            [0.1, 0, 0, 0, 0, 0, 0, 0],
-            0.001 * torch.randn(8),
-        ])
+        qs = torch.tensor(
+            [
+                [0.15, 0, 0, 0, 0, 0, 0, 0],
+                [0.05, 0, 0, 0, 0, 0, 0, 0],
+                [0.1, 0, 0, 0, 0, 0, 0, 0],
+                0.001 * torch.randn(8),
+            ]
+        )
 
         # Sanity check that the the pose error is as expected
-        r_gt = torch.tensor([
-            [0, 0, 0, 0, 0, -0.1],
-            [0, 0, 0, 0, 0, 0.15],
-            [0, 0, 0, 0, 0, 0],
-            [0.000807, -0.002434, 0.000551, 0.000002, 0.000606, 0.001627],
-        ]).reshape((24, 1))
+        r_gt = torch.tensor(
+            [
+                [0, 0, 0, 0, 0, -0.1],
+                [0, 0, 0, 0, 0, 0.15],
+                [0, 0, 0, 0, 0, 0],
+                [0.000807, -0.002434, 0.000551, 0.000002, 0.000606, 0.001627],
+            ]
+        ).reshape((24, 1))
         torch.testing.assert_close(r_gt, LmResidualFns._get_residual_pose(self.fetch, qs, poses)[0])
         torch.testing.assert_close(r_gt, LmResidualFnsNaive._get_residual_pose(self.fetch, qs, poses)[0])
         J = torch.zeros((24, 32))
 
         # Check that the appropriate rows are filtered
-        expected = torch.tensor([
-            [0, 0, 0, 0, 0, -0.03],
-            [0, 0, 0, 0, 0, 0.15],
-            [0, 0, 0, 0, 0, 0],
-            [0.000807, -0.002434, 0.000551, 0.000002 * 0.3, 0.000606 * 0.3, 0.001627 * 0.3],
-        ]).reshape(
+        expected = torch.tensor(
+            [
+                [0, 0, 0, 0, 0, -0.03],
+                [0, 0, 0, 0, 0, 0.15],
+                [0, 0, 0, 0, 0, 0],
+                [0.000807, -0.002434, 0.000551, 0.000002 * 0.3, 0.000606 * 0.3, 0.001627 * 0.3],
+            ]
+        ).reshape(
             (24, 1)
         )  # scale r0_gt by some factor below the threshold
         threshold_m = 0.125
@@ -509,22 +533,24 @@ class OptimizationUtilsTest(unittest.TestCase):
     def test_filter_rows_from_r_J_differencing(self):
         """Test that filter_rows_from_r_J_differencing() is working for robots with and without prismatic joints"""
         # Test 1: all rows are filtered, all revolute
-        r = torch.tensor([
-            [0.0],
-            [0.0],
-            [0.0],
-            [0.0],
-            [0.0],
-            [0.0],
-            [0.0],  # end of config 1
-            [0.0],
-            [0.0],
-            [0.0],
-            [0.0],
-            [0.0],
-            [0.0],
-            [0.0],  # end of config 2
-        ])
+        r = torch.tensor(
+            [
+                [0.0],
+                [0.0],
+                [0.0],
+                [0.0],
+                [0.0],
+                [0.0],
+                [0.0],  # end of config 1
+                [0.0],
+                [0.0],
+                [0.0],
+                [0.0],
+                [0.0],
+                [0.0],
+                [0.0],  # end of config 2
+            ]
+        )
         J = torch.zeros((14, 14))
         threshold_rad = 0.1
         threshold_m = 0.5
@@ -537,55 +563,61 @@ class OptimizationUtilsTest(unittest.TestCase):
         # Test 2: some rows are filtered, all revolute
         threshold_rad = 0.1
         threshold_m = 0.5
-        r = torch.tensor([
-            [0.15],
-            [-0.15],
-            [0.0],
-            [0.0],
-            [0.0],
-            [0.0],
-            [0.5],  # end of config 1
-            [0.0],
-            [0.0],
-            [0.0],
-            [0.0],
-            [0.0],
-            [0.0],
-            [1.5],  # end of config 2
-        ])
+        r = torch.tensor(
+            [
+                [0.15],
+                [-0.15],
+                [0.0],
+                [0.0],
+                [0.0],
+                [0.0],
+                [0.5],  # end of config 1
+                [0.0],
+                [0.0],
+                [0.0],
+                [0.0],
+                [0.0],
+                [0.0],
+                [1.5],  # end of config 2
+            ]
+        )
         J = torch.zeros((14, 14))
         r_filtered, _ = filter_rows_from_r_J_differencing(
             self.panda, r, J, threshold_rad, threshold_m, shift_to_threshold=True
         )
-        r_expected = torch.tensor([
-            [0.05],
-            [-0.05],
-            [0.4],  # end of config 1
-            [1.4],  # end of config 2
-        ])
+        r_expected = torch.tensor(
+            [
+                [0.05],
+                [-0.05],
+                [0.4],  # end of config 1
+                [1.4],  # end of config 2
+            ]
+        )
         torch.testing.assert_close(r_filtered, r_expected)
 
         # Test 3: all rows are filtered, some revolute
         threshold_m = 0.5
         threshold_rad = 0.1
-        r = torch.tensor([
-            [0.4],  # prismatic
-            [0.05],
-            [-0.05],
-            [0.0],
-            [0.0],
-            [0.0],
-            [0.0],
-            [0.0],  # end of config 1
-            [-0.1],  # prismatic
-            [0.0],
-            [0.0],
-            [0.0],
-            [0.0],
-            [0.0],
-            [0.0],
-            [0.0],  # end of config 1
-        ])
+        r = torch.tensor(
+            [
+                [0.4],  # prismatic
+                [0.05],
+                [-0.05],
+                [0.0],
+                [0.0],
+                [0.0],
+                [0.0],
+                [0.0],  # end of config 1
+                [-0.1],  # prismatic
+                [0.0],
+                [0.0],
+                [0.0],
+                [0.0],
+                [0.0],
+                [0.0],
+                [0.0],  # end of config 1
+            ]
+        )
         J = torch.zeros((16, 16))
         r_filtered, _ = filter_rows_from_r_J_differencing(
             self.fetch, r, J, threshold_rad, threshold_m, shift_to_threshold=True
@@ -596,34 +628,38 @@ class OptimizationUtilsTest(unittest.TestCase):
         # Test 4: some rows are filtered, some revolute
         threshold_m = 0.5
         threshold_rad = 0.1
-        r = torch.tensor([
-            [0.6],  # prismatic
-            [0.25],
-            [-0.25],
-            [0.0],
-            [0.0],
-            [0.0],
-            [0.0],
-            [0.0],  # end of config 1
-            [-0.7],  # prismatic
-            [0.0],
-            [0.0],
-            [0.0],
-            [0.0],
-            [0.0],
-            [0.0],
-            [0.0],  # end of config 1
-        ])
+        r = torch.tensor(
+            [
+                [0.6],  # prismatic
+                [0.25],
+                [-0.25],
+                [0.0],
+                [0.0],
+                [0.0],
+                [0.0],
+                [0.0],  # end of config 1
+                [-0.7],  # prismatic
+                [0.0],
+                [0.0],
+                [0.0],
+                [0.0],
+                [0.0],
+                [0.0],
+                [0.0],  # end of config 1
+            ]
+        )
         J = torch.zeros((16, 16))
         r_filtered, _ = filter_rows_from_r_J_differencing(
             self.fetch, r, J, threshold_rad, threshold_m, shift_to_threshold=True
         )
-        r_expected = torch.tensor([
-            [0.1],  # prismatic
-            [0.15],
-            [-0.15],  # end of config 1
-            [-0.2],  # prismatic, end of config 1
-        ])
+        r_expected = torch.tensor(
+            [
+                [0.1],  # prismatic
+                [0.15],
+                [-0.15],  # end of config 1
+                [-0.2],  # prismatic, end of config 1
+            ]
+        )
         torch.testing.assert_close(r_filtered, r_expected)
 
     def test_differencing_no_ignore_satisfied(self):
@@ -633,35 +669,39 @@ class OptimizationUtilsTest(unittest.TestCase):
         n = 4
         robot = self.panda
         target_path = torch.zeros((n, 7))
-        x = torch.tensor([
-            [0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07],
-            [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7],
-            [0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07],
-            [0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07],
-        ])
-        expected = torch.tensor([
-            0.09,
-            0.18,
-            0.27,
-            0.36,
-            0.45,
-            0.54,
-            0.63,
-            -0.09,
-            -0.18,
-            -0.27,
-            -0.36,
-            -0.45,
-            -0.54,
-            -0.63,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-        ])[:, None]
+        x = torch.tensor(
+            [
+                [0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07],
+                [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7],
+                [0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07],
+                [0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07],
+            ]
+        )
+        expected = torch.tensor(
+            [
+                0.09,
+                0.18,
+                0.27,
+                0.36,
+                0.45,
+                0.54,
+                0.63,
+                -0.09,
+                -0.18,
+                -0.27,
+                -0.36,
+                -0.45,
+                -0.54,
+                -0.63,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+            ]
+        )[:, None]
         assert expected.shape == ((n - 1) * ndof, 1)
         assert x.shape == (n, ndof)
         opt_params = _get_pose_and_differencing_optimization_parameters(1.0, 1.0, 1.0)

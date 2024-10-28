@@ -383,7 +383,6 @@ def run_lm_alternating_loss(
     return OptimizationResult(x_opt=x_return, n_steps_taken=i, is_valid=last_valid is not None, parallel_seed_idx=0)
 
 
-
 def run_lm_optimization(
     problem: Problem,
     x_seed: torch.Tensor,
@@ -409,9 +408,7 @@ def run_lm_optimization(
     assert x_seed.shape[1] == problem.robot.ndof
     assert isinstance(max_n_steps, int), f"error: max_n_steps must be int, is {type(max_n_steps)}"
 
-    opt_problem = OptimizationProblem(
-        problem, x_seed, stacked_target_path, verbosity, parallel_count, results_df
-    )
+    opt_problem = OptimizationProblem(problem, x_seed, stacked_target_path, verbosity, parallel_count, results_df)
     opt_state = OptimizationState(x_seed.clone(), 0, time())
 
     # lm alternating loss

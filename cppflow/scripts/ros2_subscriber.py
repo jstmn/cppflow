@@ -7,17 +7,10 @@ from std_msgs.msg import String  # Adjust to the message type you want to listen
 class SubscriberNode(Node):
     def __init__(self):
         super().__init__('listener_node')  # Node name
-        self.subscription = self.create_subscription(
-            String,         # Message type
-            'cppflow_planning_query',   # Topic name (update with the correct topic)
-            self.listener_callback,
-            10              # QoS (Queue size)
-        )
-        self.subscription  # Prevent unused variable warning
+        self.subscription = self.create_subscription(String, '/cppflow_planning_query', self.listener_callback, 10)
 
     def listener_callback(self, msg):
         self.get_logger().info(f"Received message: '{msg.data}'")
-
 
 def main(args=None):
     rclpy.init(args=args)

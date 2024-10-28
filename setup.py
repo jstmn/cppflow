@@ -22,11 +22,14 @@ setup(
         "psutil==5.9.8",
     ],
     data_files=[
-        ('share/' + package_name, ['package.xml', 'README.md']),  # Installs package.xml and README.md to /workspaces/bdai/_build/install/cppflow/share/cppflow
+        (
+            "share/" + package_name,
+            ["package.xml", "README.md"],
+        ),  # Installs package.xml and README.md to /workspaces/bdai/_build/install/cppflow/share/cppflow
     ],
     entry_points={
-        'console_scripts': [
-            'ros2_subscriber = cppflow.scripts.ros2_subscriber:main',
+        "console_scripts": [
+            "ros2_subscriber = cppflow.scripts.ros2_subscriber:main",
         ],
     },
     dependency_links=[

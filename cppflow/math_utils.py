@@ -3,6 +3,7 @@ from typing import Tuple
 # import numpy as np
 import torch
 
+
 def tile_tensor(x: torch.Tensor, k: int) -> torch.Tensor:
     """Tiles a tensor along the first dimension k times.
 

@@ -209,7 +209,6 @@ class Planner:
         paths = [ikf_sols[i * n : (i * n) + n, :] for i in range(k)]
         return paths, ee_path_tiled
 
-
     def _run_pipeline(self, problem: Problem, **kwargs) -> Tuple[torch.Tensor, bool, TimingData]:
         k = kwargs["k"] if "k" in kwargs else 175
         if "verbosity" not in kwargs:
@@ -284,7 +283,6 @@ class Planner:
         time_coll_check = time() - t0_col_check
         debug_info = {}
         q_data = (qs, self_collision_violations, env_collision_violations)
-
 
         time_batch_opt = 0.0
 
