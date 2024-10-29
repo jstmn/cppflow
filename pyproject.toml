@@ -5,14 +5,17 @@ description = ""
 authors = ["Jeremy Morgan <jsmorgan6@gmail.com>", "David Millard <dmillard@gmail.com>"]
 license = "MIT"
 readme = "README.md"
-packages = [{ include = "cppflow" }]
+# packages = [{ include = "cppflow" }]
+
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
-[tool.setuptools]
-packages = ["cppflow"]
+
+# [tool.setuptools]
+# packages = ["cppflow"]
+
 
 [tool.black]
 line-length = 120

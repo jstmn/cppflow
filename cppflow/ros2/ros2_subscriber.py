@@ -2,9 +2,9 @@
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String  # Adjust to the message type you want to listen to
-# from cppflow.ros2 import CppFlowPlanningQuery
 from cppflow.plan import Plan
-# from cppflow.msgs import CppFlowPlanningQuery
+from cppflow_msgs.msg import CppFlowPlanningQuery
+
 
 class SubscriberNode(Node):
     def __init__(self):

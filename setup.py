@@ -24,7 +24,7 @@ setup(
     data_files=[
         ("share/ament_index/resource_index/packages", ["cppflow/ros2/cppflow"]),
         (
-            "share/" + package_name,
+            f"share/{package_name}",
             ["package.xml", "README.md"],
         ),  # Installs package.xml and README.md to /workspaces/bdai/_build/install/cppflow/share/cppflow
     ],
