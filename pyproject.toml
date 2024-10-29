@@ -5,19 +5,24 @@ description = ""
 authors = ["Jeremy Morgan <jsmorgan6@gmail.com>", "David Millard <dmillard@gmail.com>"]
 license = "MIT"
 readme = "README.md"
+packages = [{ include = "cppflow" }]
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
+[tool.setuptools]
+packages = ["cppflow"]
+
 [tool.black]
 line-length = 120
 
+
 [tool.poetry.dependencies]
 python = ">=3.8.0,<3.11"
-jrl = { git = "https://github.com/jstmn/jrl.git", rev = "ebb937d2189369cce5eace9b1f83afd39df32176" }
-ikflow = { git = "https://github.com/jstmn/ikflow.git", rev = "b45c92b4147400bdb45dbabfd7169e62c9c0d187" }
-matplotlib = "3.7.0"
+jrl = { git = "https://github.com/jstmn/jrl.git", branch = "master" }
+ikflow = { git = "https://github.com/jstmn/ikflow.git" }
+matplotlib = ">=3.5.1"
 psutil = "5.9.8"
 
 

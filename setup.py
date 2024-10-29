@@ -22,6 +22,7 @@ setup(
         "psutil==5.9.8",
     ],
     data_files=[
+        ('share/ament_index/resource_index/packages', ['cppflow/ros2/cppflow']),
         (
             "share/" + package_name,
             ["package.xml", "README.md"],
@@ -29,12 +30,12 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "ros2_subscriber = cppflow.scripts.ros2_subscriber:main",
+            "ros2_subscriber = cppflow.ros2.ros2_subscriber:main",
         ],
     },
     dependency_links=[
-        "git+https://github.com/jstmn/jrl.git@ebb937d2189369cce5eace9b1f83afd39df32176#egg=jrl",
-        "git+https://github.com/jstmn/ikflow.git@b45c92b4147400bdb45dbabfd7169e62c9c0d187#egg=ikflow",
+        "git+https://github.com/jstmn/jrl.git@master#egg=jrl",
+        "git+https://github.com/jstmn/ikflow.git@master#egg=ikflow",
     ],
     extras_require={
         "dev": [

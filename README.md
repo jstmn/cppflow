@@ -40,6 +40,7 @@ python scripts/evaluate.py --planner CppFlowPlanner --problem=fetch_arm__circle 
 
 Recreate the results from the paper:
 ``` bash
+git checkout 2b6ad3097ad06af17e8d7eacdff78bbc98a1c3be
 python scripts/benchmark.py --planner_name=CppFlowPlanner
 ```
 
