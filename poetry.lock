@@ -504,7 +504,7 @@ jrl = {git = "https://github.com/jstmn/jrl.git", branch = "master"}
 type = "git"
 url = "https://github.com/jstmn/ikflow.git"
 reference = "HEAD"
-resolved_reference = "b45c92b4147400bdb45dbabfd7169e62c9c0d187"
+resolved_reference = "9c66aa2144b9f62adf29b8965721bc3386d5346d"
 
 [[package]]
 name = "importlib-resources"

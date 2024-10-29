@@ -30,13 +30,11 @@ python scripts/benchmark.py --planner_name=CppFlowPlanner
 
 if __name__ == "__main__":
     warn("Ensure no other compute processes are running on the machine - this includes jupyter notebooks.")
-    n_files = len(
-        [
-            item
-            for item in os.listdir("scripts/benchmarking_output")
-            if os.path.isfile(os.path.join("scripts/benchmarking_output", item))
-        ]
-    )
+    n_files = len([
+        item
+        for item in os.listdir("scripts/benchmarking_output")
+        if os.path.isfile(os.path.join("scripts/benchmarking_output", item))
+    ])
     assert not DEBUG_MODE_ENABLED
     assert TMAX is not None and TMAX > 5
     assert n_files == 1, f"Expected 1 file in 'scripts/benchmarking_output/' but found {n_files}."

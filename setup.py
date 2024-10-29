@@ -22,7 +22,7 @@ setup(
         "psutil==5.9.8",
     ],
     data_files=[
-        ('share/ament_index/resource_index/packages', ['cppflow/ros2/cppflow']),
+        ("share/ament_index/resource_index/packages", ["cppflow/ros2/cppflow"]),
         (
             "share/" + package_name,
             ["package.xml", "README.md"],
