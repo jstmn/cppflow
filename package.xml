@@ -8,26 +8,17 @@
     <maintainer email="jsmorgan6@gmail.com">Jeremy Morgan</maintainer>
     <license>TODO: License declaration</license>
 
-    <buildtool_depend>ament_python</buildtool_depend>
-
     <depend>bdai_ros</depend>
     <depend>bdai_ros2_wrappers</depend>
     <depend>rclpy</depend>
     <depend>std_msgs</depend>
+    <depend>cppflow_msgs</depend>
 
 
     <!-- for messages -->
     <build_depend>rosidl_default_generators</build_depend>
     <exec_depend>rosidl_default_runtime</exec_depend>
     <member_of_group>rosidl_interface_packages</member_of_group>
-
-    <!-- Exec Msg Dependencies -->
-    <!-- <depend>bdai_manipulation_msgs</depend>
-    <depend>control_msgs</depend>
-    <depend>franka_msgs</depend>
-    <depend>trajectory_msgs</depend>
-    <test_depend>ament_lint_auto</test_depend>
-    <test_depend>ament_lint_common</test_depend> -->
 
     <export>
         <build_type>ament_python</build_type>
