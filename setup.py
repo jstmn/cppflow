@@ -18,7 +18,6 @@ setup(
     python_requires=">=3.8.0,<3.11",
     packages=find_packages(),
     install_requires=[
-        "matplotlib==3.5.1",
         "psutil==5.9.8",
     ],
     data_files=[
