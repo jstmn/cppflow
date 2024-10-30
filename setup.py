@@ -18,7 +18,7 @@ setup(
     python_requires=">=3.8.0,<3.11",
     packages=find_packages(),
     install_requires=[
-        "matplotlib==3.7.0",
+        "matplotlib==3.5.1",
         "psutil==5.9.8",
     ],
     data_files=[
@@ -41,7 +41,6 @@ setup(
         "dev": [
             "black==23.1.0",
             "pylint==2.16.2",
-            "matplotlib==3.7.0",
             "pandas==1.5.3",
             "tabulate==0.9.0",
             "pytest==8.2.0",
