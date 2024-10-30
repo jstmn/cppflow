@@ -1,38 +1,144 @@
-# listener.py
+from typing import Optional
+
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import String  # Adjust to the message type you want to listen to
-from cppflow.plan import Plan
-from cppflow_msgs.srv import CppFlowQuery
+from cppflow_msgs.msg import CppFlowProblem
+from cppflow_msgs.srv import CppFlowQuery, CppFlowEnvironmentConfig
+from jrl.robot import Robot
+from jrl.robots import get_robot
+
+from cppflow.problem import Problem
+from cppflow.ros2.ros2_utils import waypoints_to_se3_sequence, plan_to_ros_trajectory
+from cppflow.planners import PlannerSearcher, CppFlowPlanner, Planner
+from cppflow.utils import set_seed
+
+set_seed()
 
 
-
+# visualization_msgs/MarkerArray obstacles
 # string base_frame
 # string end_effector_frame
-# CppFlowProblem[] problems
+# string jrl_robot_name
 # ---
-# trajectory_msgs/JointTrajectory trajectories
-# bool[] success
-# string[] errors
+# # response
+# bool succes
+# string error
+
+
+PLANNERS = {
+    "CppFlowPlanner": CppFlowPlanner,
+    "PlannerSearcher": PlannerSearcher,
+}
+
+
+PLANNER_HPARAMS = {
+    "CppFlowPlanner": {
+        "k": 175,
+        "verbosity": 2,
+        "do_rerun_if_large_dp_search_mjac": True,
+        "do_rerun_if_optimization_fails": True,
+        "do_return_search_path_mjac": True,
+    },
+    "PlannerSearcher": {"k": 175, "verbosity": 2},
+}
+PLANNER = "CppFlowPlanner"
 
 
 class SubscriberNode(Node):
     def __init__(self):
-        super().__init__('cppflow_query_server')
-        self.srv = self.create_service(CppFlowQuery, '/cppflow_planning_query', self.query_callback)
-        self.get_logger().info("CppFlowQuery service server started...")
-    
-    def query_callback(self, request, response):
-        # Log the incoming request data
-        self.get_logger().info(f"Received request: base_frame={request.base_frame}, "
-                               f"end_effector_frame={request.end_effector_frame}, "
-                               f"number of problems={len(request.problems)}")
+        super().__init__("cppflow_query_server")
+        self.srv = self.create_service(CppFlowQuery, "/cppflow_planning_query", self.query_callback)
+        self.environment_setup_srv = self.create_service(
+            CppFlowEnvironmentConfig, "/cppflow_environment_configuration", self.environment_setup_callback
+        )
 
-        # TODO: Run CppFlow and convert the result to a JointTrajectory
-        response.trajectories = []
-        response.success = [False] * len(request.problems)
-        response.errors = ['unimplemented'] * len(request.problems)
+        self.get_logger().info("CppFlowQuery service server started...")
+        self.robot: Optional[Robot] = None
+        self.planner: Optional[Planner] = None
+        self.obstacles = []
+
+    def environment_setup_callback(self, request, response):
+        self.get_logger().info(
+            f"Received a CppFlowScene message with base_frame: {request.base_frame}, end_effector_frame: {request.end_effector_frame}, robot: {request.jrl_robot_name}"
+        )
+
+        # Get robot
+        if (self.robot is None) or (self.robot.name != request.jrl_robot_name):
+            try:
+                self.robot = get_robot(request.jrl_robot_name)
+            except ValueError:
+                response.success = False
+                response.error = f"Robot '{request.jrl_robot_name}' doesn't exist in the Jrl library"
+                return response
+
+        # end effector frame doesn't match
+        if self.robot.end_effector_link_name != request.end_effector_frame:
+            response.success = False
+            response.error = f"The provided dnd-effector frame '{request.end_effector_frame}' does not match the robot's end-effector link '{self.robot.end_effector_link_name}"
+            return response
+
+        # base link doesn't match
+        robot_base_link_name = self.robot._end_effector_kinematic_chain[0].parent
+        if robot_base_link_name != request.base_frame:
+            response.success = False
+            response.error = f"The provided base frame '{request.base_frame}' does not match the robot's base link '{robot_base_link_name}"
+            return response
+
+        self.obstacles = request.obstacles
+        self.planner = PLANNERS[PLANNER](self.robot)
+        response.success = True
         return response
+
+    def query_callback(self, request, response):
+        self.get_logger().info(
+            f"Received request: base_frame={request.base_frame}, "
+            f"end_effector_frame={request.end_effector_frame}, "
+            f"number of problems={len(request.problems)}"
+        )
+
+        if len(request.problems) == 0:
+            response.is_malformed_query = True
+            response.query_format_error = "No problems provided"
+            return response
+
+        if len(request.problems) > 1:
+            response.is_malformed_query = True
+            response.query_format_error = "Only 1 planning problem allowed per query currently"
+            return response
+
+        if self.planner is None:
+            response.is_malformed_query = True
+            response.query_format_error = "Planner has not been configured. Send a 'CppFlowEnvironmentConfig' message on the '/cppflow_environment_configuration' topic to configure the scene first."
+            return response
+
+        request_problem: CppFlowProblem = request.problems[0]
+
+        if len(request_problem.waypoints) < 3:
+            response.is_malformed_query = True
+            response.query_format_error = (
+                f"At least 3 waypoints are required per problem (only {len(request_problem.waypoints)} provided)"
+            )
+            return response
+
+        # TODO: Add obstacles
+        problem = Problem(
+            target_path=waypoints_to_se3_sequence(request_problem.waypoints),
+            robot=self.robot,
+            name="QUERIED-PROBLEM",
+            full_name="QUERIED-PROBLEM-full_name",
+            obstacles=[],
+            obstacles_Tcuboids=[],
+            obstacles_cuboids=[],
+            obstacles_klampt=[],
+        )
+        planner_result = self.planner.generate_plan(problem, **PLANNER_HPARAMS[PLANNER])
+
+        # Write output to 'response'
+        response.trajectories = [plan_to_ros_trajectory(planner_result.plan, self.robot)]
+        response.success = [False] * len(request.problems)
+        response.errors = ["unimplemented"] * len(request.problems)
+        return response
+
 
 def main(args=None):
     rclpy.init(args=args)
@@ -45,5 +151,6 @@ def main(args=None):
         node.destroy_node()
         rclpy.shutdown()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

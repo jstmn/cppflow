@@ -30,6 +30,7 @@ setup(
     entry_points={
         "console_scripts": [
             "ros2_subscriber = cppflow.ros2.ros2_subscriber:main",
+            "ros2_publisher = cppflow.ros2.ros2_publisher:main",
         ],
     },
     dependency_links=[
