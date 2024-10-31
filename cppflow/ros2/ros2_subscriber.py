@@ -58,9 +58,7 @@ class SubscriberNode(Node):
         self.obstacles = []
 
     def environment_setup_callback(self, request, response):
-        self.get_logger().info(
-            f"Received a CppFlowScene message with base_frame: {request.base_frame}, end_effector_frame: {request.end_effector_frame}, robot: {request.jrl_robot_name}"
-        )
+        self.get_logger().info(f"Received a CppFlowEnvironmentConfig message: {request}")
 
         # Get robot
         if (self.robot is None) or (self.robot.name != request.jrl_robot_name):
@@ -69,12 +67,14 @@ class SubscriberNode(Node):
             except ValueError:
                 response.success = False
                 response.error = f"Robot '{request.jrl_robot_name}' doesn't exist in the Jrl library"
+                self.get_logger().info(f"Returning response: {response}")
                 return response
 
         # end effector frame doesn't match
         if self.robot.end_effector_link_name != request.end_effector_frame:
             response.success = False
             response.error = f"The provided dnd-effector frame '{request.end_effector_frame}' does not match the robot's end-effector link '{self.robot.end_effector_link_name}"
+            self.get_logger().info(f"Returning response: {response}")
             return response
 
         # base link doesn't match
@@ -82,33 +82,34 @@ class SubscriberNode(Node):
         if robot_base_link_name != request.base_frame:
             response.success = False
             response.error = f"The provided base frame '{request.base_frame}' does not match the robot's base link '{robot_base_link_name}"
+            self.get_logger().info(f"Returning response: {response}")
             return response
 
         self.obstacles = request.obstacles
         self.planner = PLANNERS[PLANNER](self.robot)
         response.success = True
+        self.get_logger().info(f"Returning response: {response}")
         return response
 
     def query_callback(self, request, response):
-        self.get_logger().info(
-            f"Received request: base_frame={request.base_frame}, "
-            f"end_effector_frame={request.end_effector_frame}, "
-            f"number of problems={len(request.problems)}"
-        )
+        self.get_logger().info(f"Received a CppFlowQuery message: {request}")
 
         if len(request.problems) == 0:
             response.is_malformed_query = True
             response.query_format_error = "No problems provided"
+            self.get_logger().info(f"Returning response: {response}")
             return response
 
         if len(request.problems) > 1:
             response.is_malformed_query = True
             response.query_format_error = "Only 1 planning problem allowed per query currently"
+            self.get_logger().info(f"Returning response: {response}")
             return response
 
         if self.planner is None:
             response.is_malformed_query = True
             response.query_format_error = "Planner has not been configured. Send a 'CppFlowEnvironmentConfig' message on the '/cppflow_environment_configuration' topic to configure the scene first."
+            self.get_logger().info(f"Returning response: {response}")
             return response
 
         request_problem: CppFlowProblem = request.problems[0]
@@ -118,6 +119,7 @@ class SubscriberNode(Node):
             response.query_format_error = (
                 f"At least 3 waypoints are required per problem (only {len(request_problem.waypoints)} provided)"
             )
+            self.get_logger().info(f"Returning response: {response}")
             return response
 
         # TODO: Add obstacles
@@ -137,6 +139,7 @@ class SubscriberNode(Node):
         response.trajectories = [plan_to_ros_trajectory(planner_result.plan, self.robot)]
         response.success = [False] * len(request.problems)
         response.errors = ["unimplemented"] * len(request.problems)
+        self.get_logger().info(f"Returning response: {response}")
         return response
 
 
