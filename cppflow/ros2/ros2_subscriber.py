@@ -1,4 +1,5 @@
 from typing import Optional
+from time import time
 
 import rclpy
 from rclpy.node import Node
@@ -63,7 +64,9 @@ class SubscriberNode(Node):
         # Get robot
         if (self.robot is None) or (self.robot.name != request.jrl_robot_name):
             try:
+                t0 = time()
                 self.robot = get_robot(request.jrl_robot_name)
+                self.get_logger().info(f"Loaded robot '{self.robot.name}' in {time() - t0:.3f} seconds")
             except ValueError:
                 response.success = False
                 response.error = f"Robot '{request.jrl_robot_name}' doesn't exist in the Jrl library"
@@ -96,19 +99,19 @@ class SubscriberNode(Node):
 
         if len(request.problems) == 0:
             response.is_malformed_query = True
-            response.query_format_error = "No problems provided"
+            response.malformed_query_error = "No problems provided"
             self.get_logger().info(f"Returning response: {response}")
             return response
 
         if len(request.problems) > 1:
             response.is_malformed_query = True
-            response.query_format_error = "Only 1 planning problem allowed per query currently"
+            response.malformed_query_error = "Only 1 planning problem allowed per query currently"
             self.get_logger().info(f"Returning response: {response}")
             return response
 
         if self.planner is None:
             response.is_malformed_query = True
-            response.query_format_error = "Planner has not been configured. Send a 'CppFlowEnvironmentConfig' message on the '/cppflow_environment_configuration' topic to configure the scene first."
+            response.malformed_query_error = "Planner has not been configured. Send a 'CppFlowEnvironmentConfig' message on the '/cppflow_environment_configuration' topic to configure the scene first."
             self.get_logger().info(f"Returning response: {response}")
             return response
 
@@ -116,7 +119,7 @@ class SubscriberNode(Node):
 
         if len(request_problem.waypoints) < 3:
             response.is_malformed_query = True
-            response.query_format_error = (
+            response.malformed_query_error = (
                 f"At least 3 waypoints are required per problem (only {len(request_problem.waypoints)} provided)"
             )
             self.get_logger().info(f"Returning response: {response}")
