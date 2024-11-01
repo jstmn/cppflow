@@ -35,7 +35,7 @@ PLANNERS = {
 PLANNER_HPARAMS = {
     "CppFlowPlanner": {
         "k": 175,
-        "verbosity": 2,
+        "verbosity": 0,
         "do_rerun_if_large_dp_search_mjac": True,
         "do_rerun_if_optimization_fails": True,
         "do_return_search_path_mjac": True,
@@ -95,7 +95,7 @@ class SubscriberNode(Node):
         return response
 
     def query_callback(self, request, response):
-        self.get_logger().info(f"Received a CppFlowQuery message: {request}")
+        self.get_logger().info(f"Received a CppFlowQuery message")
 
         if len(request.problems) == 0:
             response.is_malformed_query = True
@@ -136,13 +136,22 @@ class SubscriberNode(Node):
             obstacles_cuboids=[],
             obstacles_klampt=[],
         )
-        planner_result = self.planner.generate_plan(problem, **PLANNER_HPARAMS[PLANNER])
+        try:
+            plan = self.planner.generate_plan(problem, **PLANNER_HPARAMS[PLANNER]).plan
+        except (RuntimeError, AttributeError) as e:
+            response.trajectories = []
+            response.success = [False]
+            response.errors = [str(e)]
+            self.get_logger().info("Planning failed with exception: '{}'".format(str(e)))
+            return response
+
+        self.get_logger().info(f"plan: {plan}")
 
         # Write output to 'response'
-        response.trajectories = [plan_to_ros_trajectory(planner_result.plan, self.robot)]
-        response.success = [False] * len(request.problems)
-        response.errors = ["unimplemented"] * len(request.problems)
-        self.get_logger().info(f"Returning response: {response}")
+        response.trajectories = [plan_to_ros_trajectory(plan, self.robot)]
+        response.success = [plan.is_valid]
+        response.errors = [""]
+        self.get_logger().info("Planning complete - returning {} trajectories".format(len(response.trajectories)))
         return response
 
 

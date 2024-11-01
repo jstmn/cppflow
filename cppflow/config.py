@@ -16,7 +16,8 @@ SUCCESS_THRESHOLD_rotation_ERR_MAX_DEG = 0.1  #
 
 SUCCESS_THRESHOLD_mjac_CM = 2  # for prismatic joints
 # SUCCESS_THRESHOLD_mjac_CM = 1.5
-SUCCESS_THRESHOLD_mjac_DEG = 7  # for revolute joints
+# SUCCESS_THRESHOLD_mjac_DEG = 7
+SUCCESS_THRESHOLD_mjac_DEG = 3  # for revolute joints
 
 # LM optimization
 SELF_COLLISIONS_IGNORED = False
