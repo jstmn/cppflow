@@ -9,6 +9,8 @@ DEFAULT_TORCH_DTYPE = torch.float32
 torch.set_default_dtype(DEFAULT_TORCH_DTYPE)
 torch.set_default_device(DEVICE)
 
+VERBOSITY = 2
+
 # Success criteria
 SUCCESS_THRESHOLD_translation_ERR_MAX_CM = 0.01  # 0.1mm
 SUCCESS_THRESHOLD_translation_ERR_MAX_MM = SUCCESS_THRESHOLD_translation_ERR_MAX_CM * 10

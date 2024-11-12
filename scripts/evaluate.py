@@ -16,6 +16,7 @@ from cppflow.planners import (
     Planner,
     PlannerResult,
     TimingData,
+    PlannerSettings
 )
 from cppflow.problem import problem_from_filename, get_all_problems, Problem
 from cppflow.utils import set_seed
@@ -53,8 +54,8 @@ PD_COLUMN_NAMES = [
 ]
 
 
-def _eval_planner_on_problem(planner: Type[Planner], problem: Problem, kwargs: Dict):
-    result = planner.generate_plan(problem, **kwargs)
+def _eval_planner_on_problem(planner: Type[Planner], problem: Problem, planner_settings: PlannerSettings):
+    result = planner.generate_plan(problem, planner_settings)
     print()
     print(result.plan)
     print()
@@ -89,7 +90,7 @@ def _eval_planner_on_problem(planner: Type[Planner], problem: Problem, kwargs: D
 
 
 # TODO: update to only use LmFull. Or move this to a new script that's just for saving data to the paper repo
-def eval_planners_on_problem(kwargs_dict: Dict, save_to_benchmarking: bool = True):
+def eval_planners_on_problem(settings_dict: Dict, save_to_benchmarking: bool = True):
     """Run all planners on each problem"""
     # problems = get_all_problems()
     problems = [problem_from_filename("fetch_arm__square")]
@@ -112,7 +113,7 @@ def eval_planners_on_problem(kwargs_dict: Dict, save_to_benchmarking: bool = Tru
             planner = planner_clc(problem.robot)
             print("\n  ======\n")
             print(planner)
-            new_row = _eval_planner_on_problem(planner, problem, kwargs_dict[planner.name])
+            new_row = _eval_planner_on_problem(planner, problem, settings_dict[planner.name])
             # df.loc[len(df)] = new_row
             # df_all.loc[len(df_all)] = new_row
 
@@ -149,7 +150,9 @@ def eval_planners_on_problem(kwargs_dict: Dict, save_to_benchmarking: bool = Tru
             f.write(f"# Parameters")
             f.write(f"\n\ndt: {now_str} | cli_input: `{cli_input}`\n")
             f.write(f"\n\nparams:\n")
-            for k, v in kwargs_dict.items():
+            for k, v in settings_dict.__dict__.items():
+                if k[0] == "_":
+                    continue
                 f.write(f"- {k}: `{v}`\n")
             f.write(f"\n\n")
             f.write(f"\n\ncomputer:\n")
@@ -160,7 +163,7 @@ def eval_planners_on_problem(kwargs_dict: Dict, save_to_benchmarking: bool = Tru
             f.write(f"\n\n")
 
 
-def eval_planner_on_problems(planner_name: str, kwargs: Dict):
+def eval_planner_on_problems(planner_name: str, planner_settings: PlannerSettings):
     """Evaluate a planner on the given problems"""
     # problems = get_all_problems()
     problems = [
@@ -177,7 +180,7 @@ def eval_planner_on_problems(planner_name: str, kwargs: Dict):
     for problem, planner in zip(problems, planners):
         print("\n---------------------------------")
         print(problem)
-        new_row, is_valid = _eval_planner_on_problem(planner, problem, kwargs)
+        new_row, is_valid = _eval_planner_on_problem(planner, problem, planner_settings)
         assert len(new_row) == len(PD_COLUMN_NAMES), (
             f"len(new_row)={len(new_row)} != len(PD_COLUMN_NAMES)={len(PD_COLUMN_NAMES)}\n. Column:"
             f" {PD_COLUMN_NAMES}\nrow: {new_row}"
@@ -198,7 +201,7 @@ def eval_planner_on_problems(planner_name: str, kwargs: Dict):
         cli_input = "python " + " ".join(sys.argv)
         f.write(f"\n\n**{dt}** | Generated with `{cli_input}`")
         f.write(f"\n\nPlanner: **{planner.name}**")
-        f.write(f"\n\nparams: `{kwargs}`\n\n")
+        f.write(f"\n\nparams: `{planner_settings}`\n\n")
         f.write(df.to_markdown())
 
         valid_text = "\n```\n"
@@ -267,6 +270,8 @@ python scripts/evaluate.py --planner CppFlowPlanner --problem=fetch__s --visuali
 python scripts/evaluate.py --planner CppFlowPlanner --problem=fetch__square --visualize
 """
 
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--planner_name", type=str)
@@ -279,16 +284,19 @@ if __name__ == "__main__":
     parser.add_argument("--save_to_benchmarking", action="store_true")
     args = parser.parse_args()
 
-    kwargs_dict = {
-        "CppFlowPlanner": {
-            "k": 175,
-            "verbosity": 2,
-            "do_rerun_if_large_dp_search_mjac": True,
-            "do_rerun_if_optimization_fails": True,
-            "do_return_search_path_mjac": True,
-        },
-        "PlannerSearcher": {"k": 175, "verbosity": 2},
+
+    planner_settings_dict = {
+        "CppFlowPlanner": PlannerSettings(
+            k=175,
+            do_rerun_if_large_dp_search_mjac=True,
+            do_rerun_if_optimization_fails=True,
+            do_return_search_path_mjac=True,
+        ),
+        "PlannerSearcher": PlannerSettings(
+            k=175,
+        ),
     }
+    planner_settings = planner_settings_dict[args.planner_name]
 
     if args.problem is not None:
         problem = problem_from_filename(args.problem)
@@ -299,7 +307,7 @@ if __name__ == "__main__":
             planner_result = PlannerResult(plan, TimingData(0, 0, 0, 0, 0, 0), [], [], {})
         else:
             planner: Planner = PLANNERS[args.planner_name](problem.robot)
-            planner_result = planner.generate_plan(problem, **kwargs_dict[planner.name])
+            planner_result = planner.generate_plan(problem, planner_settings)
 
             # save results to disk
             # torch.save(planner_result.plan, f"pt_tensors/plan__{problem.full_name}__{planner.name}.pt")
@@ -327,8 +335,7 @@ if __name__ == "__main__":
             visualize_plan(planner_result.plan, problem, start_delay=3)
 
     if args.all_1:
-        kwargs = kwargs_dict[args.planner_name]
-        eval_planner_on_problems(args.planner_name, kwargs)
+        eval_planner_on_problems(args.planner_name, planner_settings)
 
     elif args.all_2:
-        eval_planners_on_problem(kwargs_dict, args.save_to_benchmarking)
+        eval_planners_on_problem(planner_settings_dict, args.save_to_benchmarking)

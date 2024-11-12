@@ -3,10 +3,12 @@ from time import time
 
 import rclpy
 from rclpy.node import Node
+from rclpy.serialization import serialize_message, deserialize_message
 from cppflow_msgs.msg import CppFlowProblem
 from cppflow_msgs.srv import CppFlowQuery, CppFlowEnvironmentConfig
 from jrl.robot import Robot
 from jrl.robots import get_robot
+from jrl.utils import to_torch
 
 from cppflow.problem import Problem
 from cppflow.ros2.ros2_utils import waypoints_to_se3_sequence, plan_to_ros_trajectory
@@ -15,6 +17,7 @@ from cppflow.utils import set_seed
 
 set_seed()
 
+SAVE_MESSAGES = True
 
 # visualization_msgs/MarkerArray obstacles
 # string base_frame
@@ -40,7 +43,7 @@ PLANNER_HPARAMS = {
         "do_rerun_if_optimization_fails": True,
         "do_return_search_path_mjac": True,
     },
-    "PlannerSearcher": {"k": 175, "verbosity": 2},
+    "PlannerSearcher": {"k": 175, "verbosity": 0},
 }
 PLANNER = "CppFlowPlanner"
 
@@ -60,6 +63,13 @@ class SubscriberNode(Node):
 
     def environment_setup_callback(self, request, response):
         self.get_logger().info(f"Received a CppFlowEnvironmentConfig message: {request}")
+
+        if SAVE_MESSAGES:
+            save_filepath = "/tmp/CppFlowEnvironmentConfig_request.bin"
+            with open(save_filepath, 'wb') as file:
+                file.write(serialize_message(request))
+            self.get_logger().info(f"Saved CppFlowEnvironmentConfig request to '{save_filepath}'")
+
 
         # Get robot
         if (self.robot is None) or (self.robot.name != request.jrl_robot_name):
@@ -97,6 +107,13 @@ class SubscriberNode(Node):
     def query_callback(self, request, response):
         self.get_logger().info(f"Received a CppFlowQuery message")
 
+        if SAVE_MESSAGES:
+            save_filepath = "/tmp/CppFlowQuery_request.bin"
+            with open(save_filepath, 'wb') as file:
+                file.write(serialize_message(request))
+            self.get_logger().info(f"Saved a CppFlowQuery request to '{save_filepath}'")
+
+
         if len(request.problems) == 0:
             response.is_malformed_query = True
             response.malformed_query_error = "No problems provided"
@@ -126,8 +143,10 @@ class SubscriberNode(Node):
             return response
 
         # TODO: Add obstacles
+        q0 = to_torch(request.initial_configuration.position) if request.initial_configuration_is_set else None
         problem = Problem(
             target_path=waypoints_to_se3_sequence(request_problem.waypoints),
+            q0=q0,
             robot=self.robot,
             name="QUERIED-PROBLEM",
             full_name="QUERIED-PROBLEM-full_name",

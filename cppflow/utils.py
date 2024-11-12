@@ -5,11 +5,68 @@ import random
 from time import time
 import colorsys
 
+from jrl.robot import Robot
+import matplotlib.pyplot as plt
 import pkg_resources
 import torch
 import numpy as np
 
-from cppflow import config
+from cppflow.evaluation_utils import calculate_mjac_deg, calculate_per_timestep_mjac_cm
+from cppflow.config import DEFAULT_TORCH_DTYPE, DEVICE, VERBOSITY
+
+
+def print_v1(s, *args, **kwargs):
+    """ Prints if verbsotity is 1 or greater
+    """
+    if VERBOSITY >= 1:
+        print(s, *args, **kwargs)
+
+def print_v2(s, *args, **kwargs):
+    """ Prints if verbsotity is 2 or greater
+    """
+    if VERBOSITY >= 2:
+        print(s, *args, **kwargs)
+        print(s)
+
+def print_v3(s, *args, **kwargs):
+    """ Prints if verbsotity is 3 or greater
+    """
+    if VERBOSITY >= 3:
+        print(s, *args, **kwargs)
+
+
+def _plot_self_collisions(self_collision_violations: torch.Tensor):
+    plt.figure(figsize=(10, 10))
+    plt.tight_layout()
+    plt.imshow(self_collision_violations.cpu().numpy(), vmin=0, vmax=1)
+    plt.title("self collision violations")
+    plt.xlabel("timestep")
+    plt.ylabel("k")
+    # plt.colorbar()
+    plt.grid(True, which="both", axis="both")
+    plt.savefig("debug__self_collision_violations.png", bbox_inches="tight")
+    plt.close()
+
+
+def _plot_env_collisions(env_collision_violations: torch.Tensor):
+    plt.figure(figsize=(10, 10))
+    plt.tight_layout()
+    plt.imshow(env_collision_violations.cpu().numpy(), vmin=0, vmax=1)
+    plt.title("environment collision violations")
+    plt.xlabel("timestep")
+    plt.ylabel("k")
+    # plt.colorbar()
+    plt.grid(True, which="both", axis="both")
+    plt.savefig("debug__env_collision_violations.png", bbox_inches="tight")
+    plt.close()
+
+def _get_mjacs(robot: Robot, qpath: torch.Tensor):
+    qps_revolute, qps_prismatic = robot.split_configs_to_revolute_and_prismatic(qpath)
+    if qps_prismatic.numel() > 0:
+        return calculate_mjac_deg(qps_revolute), calculate_per_timestep_mjac_cm(qps_prismatic).abs().max().item()
+    return calculate_mjac_deg(qps_revolute), 0.0
+
+
 
 TORM_TL_RESULTS = {
     "fetch_arm__circle": (11.105, None),
@@ -164,9 +221,7 @@ def np_hash(arr: np.ndarray) -> int:
     return hash(str(arr))
 
 
-def to_torch(
-    x: np.ndarray, device: str = config.DEVICE, dtype: torch.dtype = config.DEFAULT_TORCH_DTYPE
-) -> torch.Tensor:
+def to_torch(x: np.ndarray, device: str = DEVICE, dtype: torch.dtype = DEFAULT_TORCH_DTYPE) -> torch.Tensor:
     if isinstance(x, torch.Tensor):
         return x
     return torch.tensor(x, device=device, dtype=dtype)
