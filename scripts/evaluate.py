@@ -7,6 +7,8 @@ import os
 import socket
 import psutil
 
+import hydra
+from omegaconf import DictConfig, OmegaConf
 import torch
 import pandas as pd
 
@@ -271,20 +273,7 @@ python scripts/evaluate.py --planner CppFlowPlanner --problem=fetch__square --vi
 """
 
 
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--planner_name", type=str)
-    parser.add_argument("--problem", type=str)
-    parser.add_argument("--visualize", action="store_true")
-    parser.add_argument("--plan_filepath", type=str)
-    parser.add_argument("--plot", action="store_true")
-    parser.add_argument("--all_1", action="store_true")
-    parser.add_argument("--all_2", action="store_true")
-    parser.add_argument("--save_to_benchmarking", action="store_true")
-    args = parser.parse_args()
-
-
+def run(args):
     planner_settings_dict = {
         "CppFlowPlanner": PlannerSettings(
             k=175,
@@ -339,3 +328,22 @@ if __name__ == "__main__":
 
     elif args.all_2:
         eval_planners_on_problem(planner_settings_dict, args.save_to_benchmarking)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--planner_name", type=str)
+    parser.add_argument("--problem", type=str)
+    parser.add_argument("--visualize", action="store_true")
+    parser.add_argument("--plan_filepath", type=str)
+    parser.add_argument("--plot", action="store_true")
+    parser.add_argument("--all_1", action="store_true")
+    parser.add_argument("--all_2", action="store_true")
+    parser.add_argument("--save_to_benchmarking", action="store_true")
+    args = parser.parse_args()
+
+
+    @hydra.main(config_path=".", config_name="config")
+    def main(cfg):
+        run(args, cfg)
+    main()

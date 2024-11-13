@@ -21,7 +21,6 @@ python = ">=3.8.0,<3.11"
 jrl = { git = "https://github.com/jstmn/jrl.git", branch = "master" }
 ikflow = { git = "https://github.com/jstmn/ikflow.git" }
 psutil = "5.9.8"
-hydra-core = "^1.3.2"
 
 
 [tool.poetry.group.dev.dependencies]

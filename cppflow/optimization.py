@@ -1,6 +1,7 @@
 from dataclasses import dataclass
-from typing import Optional, List, Tuple, Dict
+from typing import Optional, Dict
 from time import time
+import warnings
 
 import torch
 from jrl.utils import safe_mkdir
@@ -10,6 +11,7 @@ from cppflow.utils import make_text_green_or_red
 from cppflow.problem import Problem
 from cppflow.plan import write_qpath_to_results_df
 from cppflow.evaluation_utils import angular_changes
+from cppflow.config import SELF_COLLISIONS_IGNORED, ENV_COLLISIONS_IGNORED
 
 from cppflow.optimization_utils import (
     x_is_valid,
@@ -20,25 +22,6 @@ from cppflow.optimization_utils import (
 )
 from cppflow.lm_hyper_parameters import ALT_LOSS_V2_1_POSE, ALT_LOSS_V2_1_DIFF
 
-# ALT_LOSS_ANYTIME_MODE_ENABLED = True
-ALT_LOSS_ANYTIME_MODE_ENABLED = False
-
-if ALT_LOSS_ANYTIME_MODE_ENABLED:
-    # TMAX = 60
-    TMAX = 10
-    # TMAX = 20
-    ALTERNATING_LOSS_MAX_N_STEPS = None
-    ALTERNATING_LOSS_RETURN_IF_SOL_FOUND_AFTER = None
-    ALTERNATING_LOSS_CONVERGENCE_THRESHOLD = 0.005
-else:
-    TMAX = 1.5
-    ALTERNATING_LOSS_MAX_N_STEPS = 20
-    ALTERNATING_LOSS_RETURN_IF_SOL_FOUND_AFTER = 15
-    ALTERNATING_LOSS_CONVERGENCE_THRESHOLD = 0.3
-
-# LmAlt - v2.1
-_DEFAULT_ALT_LOSS_HPARAMS_DIFFERENCING = ALT_LOSS_V2_1_DIFF
-_DEFAULT_ALT_LOSS_HPARAMS_POSE = ALT_LOSS_V2_1_POSE
 
 
 @dataclass
@@ -167,8 +150,8 @@ def run_lm_alternating_loss(
     params_diff: OptimizationParameters,
     params_pose: OptimizationParameters,
     return_residuals: bool = False,
-    tmax: Optional[float] = TMAX,
     tmax_return_if_no_valid_after: int = 25,
+    tmax: Optional[float] = TMAX,
     max_n_steps: int = ALTERNATING_LOSS_MAX_N_STEPS,
     return_if_valid_after_n_steps: int = ALTERNATING_LOSS_RETURN_IF_SOL_FOUND_AFTER,
     convergence_threshold: float = ALTERNATING_LOSS_CONVERGENCE_THRESHOLD,
@@ -386,9 +369,10 @@ def run_lm_alternating_loss(
 def run_lm_optimization(
     problem: Problem,
     x_seed: torch.Tensor,
-    opt_params_alternating_diff: Optional[OptimizationParameters] = _DEFAULT_ALT_LOSS_HPARAMS_DIFFERENCING,
-    opt_params_alternating_pose: Optional[OptimizationParameters] = _DEFAULT_ALT_LOSS_HPARAMS_POSE,
-    max_n_steps: int = 25,
+    tmax: float,
+    max_n_steps: int,
+    return_if_valid_after_n_steps: int,
+    convergence_threshold: float,
     parallel_count: int = 1,
     results_df: Optional[Dict] = None,
     verbosity: int = 1,
@@ -400,6 +384,18 @@ def run_lm_optimization(
         max_n_steps (int): Number of steps to optimize for
         parallel_count (int): Number of seeds. This optimizer is agnostic to the number of initial qpath seeds used.
     """
+    if SELF_COLLISIONS_IGNORED:
+        warnings.warn("robot-robot are collisions will be ignored during LM optimization")
+    if ENV_COLLISIONS_IGNORED:
+        warnings.warn("environment-robot collisions will be ignored during LM optimization")
+
+
+    TODO: use the following:
+        tmax
+        max_n_steps
+        return_if_valid_after_n_steps
+        convergence_threshold
+
     stacked_target_path = (
         problem.target_path if parallel_count == 1 else torch.vstack([problem.target_path] * parallel_count)
     )
@@ -415,8 +411,8 @@ def run_lm_optimization(
     return run_lm_alternating_loss(
         opt_problem,
         opt_state,
-        opt_params_alternating_diff,
-        opt_params_alternating_pose,
+        ALT_LOSS_V2_1_DIFF,
+        ALT_LOSS_V2_1_POSE,
         verbosity=verbosity,
         results_df=results_df,
     )

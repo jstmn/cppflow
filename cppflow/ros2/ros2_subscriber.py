@@ -1,5 +1,6 @@
 from typing import Optional
 from time import time
+import traceback
 
 import rclpy
 from rclpy.node import Node
@@ -9,10 +10,13 @@ from cppflow_msgs.srv import CppFlowQuery, CppFlowEnvironmentConfig
 from jrl.robot import Robot
 from jrl.robots import get_robot
 from jrl.utils import to_torch
+import hydra
+from omegaconf import DictConfig
+from hydra.core.hydra_config import HydraConfig
 
 from cppflow.problem import Problem
 from cppflow.ros2.ros2_utils import waypoints_to_se3_sequence, plan_to_ros_trajectory
-from cppflow.planners import PlannerSearcher, CppFlowPlanner, Planner
+from cppflow.planners import PlannerSearcher, CppFlowPlanner, Planner, PlannerSettings
 from cppflow.utils import set_seed
 
 set_seed()
@@ -36,13 +40,12 @@ PLANNERS = {
 
 
 PLANNER_HPARAMS = {
-    "CppFlowPlanner": {
-        "k": 175,
-        "verbosity": 0,
-        "do_rerun_if_large_dp_search_mjac": True,
-        "do_rerun_if_optimization_fails": True,
-        "do_return_search_path_mjac": True,
-    },
+    "CppFlowPlanner": PlannerSettings(
+        k=175,
+        do_rerun_if_large_dp_search_mjac=True,
+        do_rerun_if_optimization_fails=True,
+        do_return_search_path_mjac=True,
+    ),
     "PlannerSearcher": {"k": 175, "verbosity": 0},
 }
 PLANNER = "CppFlowPlanner"
@@ -156,12 +159,16 @@ class SubscriberNode(Node):
             obstacles_klampt=[],
         )
         try:
-            plan = self.planner.generate_plan(problem, **PLANNER_HPARAMS[PLANNER]).plan
+            plan = self.planner.generate_plan(problem, PLANNER_HPARAMS[PLANNER]).plan
         except (RuntimeError, AttributeError) as e:
+            tb = traceback.extract_tb(e.__traceback__)[-1]
+            filename = tb.filename
+            line_number = tb.lineno
+            error_msg = f"{e} (File: {filename}, Line: {line_number})"
             response.trajectories = []
             response.success = [False]
-            response.errors = [str(e)]
-            self.get_logger().info("Planning failed with exception: '{}'".format(str(e)))
+            response.errors = [error_msg]
+            self.get_logger().info(f"Planning failed with exception: '{error_msg}'")
             return response
 
         self.get_logger().info(f"plan: {plan}")
@@ -174,8 +181,10 @@ class SubscriberNode(Node):
         return response
 
 
-def main(args=None):
-    rclpy.init(args=args)
+@hydra.main(config_path=".", config_name="config")
+def main(cfg: DictConfig):
+    rclpy.init()
+    HydraConfig.instance().set_config(cfg)
     node = SubscriberNode()
     try:
         rclpy.spin(node)

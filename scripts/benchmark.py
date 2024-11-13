@@ -8,12 +8,28 @@ import os
 
 import torch
 import pandas as pd
+import hydra
+from omegaconf import DictConfig
 
 from cppflow.planners import PlannerSearcher, CppFlowPlanner
 from cppflow.optimization import TMAX
 from cppflow.problem import ALL_PROBLEM_FILENAMES, get_problem_dict
 from cppflow.utils import set_seed
-from cppflow.config import RESULTS_CSV_COLS, DEBUG_MODE_ENABLED
+
+RESULTS_CSV_COLS = (
+    "Time Elapsed (s)",
+    "is valid",
+    "Mean Pos Error (mm)",
+    "Max Pos Error (mm)",
+    "Mean Rot Error (deg)",
+    "Max Rot Error (deg)",
+    "Mjac (deg)",
+    "Mjac (cm)",
+    "pct_self-colliding",
+    "pct_env-colliding",
+    "path_length_rad",
+    "path_length_m",
+)
 
 
 torch.set_printoptions(linewidth=120)
@@ -24,12 +40,9 @@ PLANNERS = {
     "PlannerSearcher": PlannerSearcher,
 }
 
-"""
-python scripts/benchmark.py --planner_name=CppFlowPlanner
-"""
 
-if __name__ == "__main__":
-    warn("Ensure no other compute processes are running on the machine - this includes jupyter notebooks.")
+@hydra.main(config_path=".", config_name="config")
+def main(cfg: DictConfig):
     n_files = len(
         [
             item
@@ -37,7 +50,7 @@ if __name__ == "__main__":
             if os.path.isfile(os.path.join("scripts/benchmarking_output", item))
         ]
     )
-    assert not DEBUG_MODE_ENABLED
+    assert not cfg.debug_mode_enabled
     assert TMAX is not None and TMAX > 5
     assert n_files == 1, f"Expected 1 file in 'scripts/benchmarking_output/' but found {n_files}."
 
@@ -112,3 +125,12 @@ if __name__ == "__main__":
         for k, v in kwargs_dict.items():
             f.write(f"- {k}: `{v}`\n")
         f.write(f"\n\n")
+
+
+"""
+python scripts/benchmark.py --planner_name=CppFlowPlanner
+"""
+
+if __name__ == "__main__":
+    warn("Ensure no other compute processes are running on the machine - this includes jupyter notebooks.")
+    main()

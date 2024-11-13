@@ -27,7 +27,6 @@ def _get_pose_and_differencing_optimization_parameters(
     return OptimizationParameters(
         # General
         seed_w_only_pose=False,
-        do_use_penalty_method=False,
         # Alphas
         alpha_position=alpha_pos,
         alpha_rotation=alpha_rot,
@@ -365,7 +364,6 @@ class OptimizationUtilsTest(unittest.TestCase):
     def test__get_r_and_J__pose(self):
         opt_params = OptimizationParameters(
             # General
-            do_use_penalty_method=False,
             seed_w_only_pose=False,
             # Alphas
             alpha_position=0.25,
@@ -488,7 +486,6 @@ class OptimizationUtilsTest(unittest.TestCase):
         """Test that the updated residual and jacobian from LmResidualFns match the naive implementation."""
         opt_params = OptimizationParameters(
             # General
-            do_use_penalty_method=False,
             seed_w_only_pose=False,
             # Alphas
             alpha_position=0.5,

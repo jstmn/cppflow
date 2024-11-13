@@ -12,27 +12,45 @@ import torch
 import numpy as np
 
 from cppflow.evaluation_utils import calculate_mjac_deg, calculate_per_timestep_mjac_cm
-from cppflow.config import DEFAULT_TORCH_DTYPE, DEVICE, VERBOSITY
+from cppflow.config import DEFAULT_TORCH_DTYPE, DEVICE
 
 
-def print_v1(s, *args, **kwargs):
+def print_v1(s, verbosity=0, *args, **kwargs):
     """ Prints if verbsotity is 1 or greater
     """
-    if VERBOSITY >= 1:
+    if verbosity >= 1:
         print(s, *args, **kwargs)
 
-def print_v2(s, *args, **kwargs):
+def print_v2(s, verbosity=0, *args, **kwargs):
     """ Prints if verbsotity is 2 or greater
     """
-    if VERBOSITY >= 2:
+    if verbosity >= 2:
         print(s, *args, **kwargs)
         print(s)
 
-def print_v3(s, *args, **kwargs):
+def print_v3(s, verbosity=0, *args, **kwargs):
     """ Prints if verbsotity is 3 or greater
     """
-    if VERBOSITY >= 3:
+    if verbosity >= 3:
         print(s, *args, **kwargs)
+
+def _print_kwargs(kwargs, verbosity=0):
+    if verbosity < 1:
+        return
+    for key, v in kwargs.items():
+        if key == "results_df" or key[0] == "_":
+            continue
+        if isinstance(v, tuple):
+            print(f"  {key}: (", end=" ")
+            for vv in v:
+                if isinstance(vv, torch.Tensor):
+                    print(vv.shape, end=", ")
+                else:
+                    print(vv, end=", ")
+            print(")")
+            continue
+        print(f"  {key}: {v}")
+    print()
 
 
 def _plot_self_collisions(self_collision_violations: torch.Tensor):

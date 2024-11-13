@@ -9,12 +9,12 @@ from ikflow.model_loading import get_ik_solver
 from ikflow.model import IkflowModelParameters, TINY_MODEL_PARAMS
 from jrl.robot import Robot
 from jrl.robots import Panda, Fetch, FetchArm
-
+from hydra.core.hydra_config import HydraConfig
 import torch
 
 from cppflow.utils import TimerContext, print_v1, print_v2, print_v3, _plot_self_collisions, _plot_env_collisions, _get_mjacs
 from cppflow.problem import Problem
-from cppflow.config import DEBUG_MODE_ENABLED, DEVICE, VERBOSITY
+from cppflow.config import debug_mode_enabled, DEVICE
 from cppflow.search import dp_search
 from cppflow.optimization import run_lm_optimization
 from cppflow.plan import Plan, plan_from_qpath, write_qpath_to_results_df
@@ -56,6 +56,12 @@ class PlannerResult:
     debug_info: dict
 
 
+TODO: should also include:
+        tmax
+        max_n_steps
+        return_if_valid_after_n_steps
+        convergence_threshold
+
 @dataclass
 class PlannerSettings:
     k: int
@@ -75,26 +81,6 @@ class PlannerSettings:
         assert self.latent_distribution in {"uniform", "gaussian"}
         assert self.latent_vector_scale > 0.0
 
-
-
-
-def _print_kwargs(kwargs):
-    if VERBOSITY < 1:
-        return
-    for key, v in kwargs.items():
-        if key == "results_df" or key[0] == "_":
-            continue
-        if isinstance(v, tuple):
-            print(f"  {key}: (", end=" ")
-            for vv in v:
-                if isinstance(vv, torch.Tensor):
-                    print(vv.shape, end=", ")
-                else:
-                    print(vv, end=", ")
-            print(")")
-            continue
-        print(f"  {key}: {v}")
-    print()
 
 
 def add_search_path_mjac(debug_info: Dict, problem: Problem, qpath_search: torch.Tensor):
@@ -133,6 +119,16 @@ class Planner:
             self._ikflow_solver = IKFlowSolver(TINY_MODEL_PARAMS, robot)
 
         self._network_width = self._ikflow_solver.network_width
+
+
+    def set_settings(self, settings: PlannerSettings):
+        TODO: should include:
+        tmax
+        max_n_steps
+        return_if_valid_after_n_steps
+        convergence_threshold
+
+        self.v: int = GET VERBOSITY
 
     # Public methods
     @property
@@ -197,7 +193,7 @@ class Planner:
         """Returns k different config space paths for the given ee_path."""
         n = ee_path.shape[0]
 
-        with torch.inference_mode(), TimerContext("running IKFlow", enabled=VERBOSITY > 0):
+        with torch.inference_mode(), TimerContext("running IKFlow", enabled=self.v > 0):
             ee_path_tiled = torch.tile(ee_path, (cfg.k, 1))
             # TODO: Query model directly (remove 'generate_ik_solutions()' call)
             ikf_sols = self._ikflow_solver.generate_ik_solutions(
@@ -231,23 +227,23 @@ class Planner:
         t0_col_check = time()
         qs = torch.stack(ikflow_qpaths)
 
-        with TimerContext("calculating self-colliding configs", enabled=VERBOSITY > 0):
+        with TimerContext("calculating self-colliding configs", enabled=self.v > 0):
             self_collision_violations = qpaths_batched_self_collisions(problem, qs)
             pct_colliding = (torch.sum(self_collision_violations) / (cfg.k * problem.n_timesteps)).item() * 100
             assert pct_colliding < 95.0, f"too many env collisions: {pct_colliding} %"
             print_v2(f"  self_collision violations: {pct_colliding} %")
 
-            if VERBOSITY > 2:
+            if self.v > 2:
                 warnings.warn("FYI: SAVING FIGURE. REMOVE THIS WHEN TIMING MATTERS")
                 _plot_self_collisions(self_collision_violations)
 
-        with TimerContext("calculating env-colliding configs", enabled=VERBOSITY > 0):
+        with TimerContext("calculating env-colliding configs", enabled=self.v > 0):
             env_collision_violations = qpaths_batched_env_collisions(problem, qs)
             pct_colliding = (torch.sum(env_collision_violations) / (cfg.k * problem.n_timesteps)).item() * 100
             assert pct_colliding < 95.0, f"too many env collisions: {pct_colliding} %"
             print_v2(f"  env_collision violations: {pct_colliding} %")
 
-            if VERBOSITY > 2:
+            if self.v > 2:
                 warnings.warn("FYI: SAVING FIGURE. REMOVE THIS WHEN TIMING MATTERS")
                 _plot_env_collisions(env_collision_violations)
 
@@ -263,13 +259,13 @@ class Planner:
 
         # dp_search
         t0_dp_search = time()
-        with TimerContext(f"running dynamic programming search with qs: {qs.shape}", enabled=VERBOSITY > 0):
+        with TimerContext(f"running dynamic programming search with qs: {qs.shape}", enabled=self.v > 0):
             qpath_search = dp_search(self.robot, qs, self_collision_violations, env_collision_violations).to(DEVICE)
         time_dp_search = time() - t0_dp_search
         if "results_df" in kwargs:
             write_qpath_to_results_df(kwargs["results_df"], qpath_search, problem)
 
-        if DEBUG_MODE_ENABLED and cfg.do_return_search_path_mjac:
+        if debug_mode_enabled and cfg.do_return_search_path_mjac:
             add_search_path_mjac(debug_info, problem, qpath_search)
 
         return (
@@ -301,11 +297,11 @@ class PlannerSearcher(Planner):
         if cfg.do_rerun_if_large_dp_search_mjac:
             mjac_deg, mjac_cm = _get_mjacs(problem.robot, qpath_search)
             if mjac_deg > cfg.rerun_mjac_threshold_deg or mjac_cm > cfg.rerun_mjac_threshold_cm:
-                print_v1(f"rerunning dp_search with larger k b/c mjac is too high: {mjac_deg} deg, {mjac_cm} cm", kwargs)
-                kwargs["k"] = DEFAULT_RERUN_NEW_K
+                print_v1(f"rerunning dp_search with larger k b/c mjac is too high: {mjac_deg} deg, {mjac_cm} cm", verbosity=self.v)
+                cfg.k = DEFAULT_RERUN_NEW_K
                 qpath_search, _, td, debug_info, _ = self._run_pipeline(cfg, problem,  **kwargs)
                 mjac_deg, mjac_cm = _get_mjacs(problem.robot, qpath_search)
-                print_v1(f"new mjac after dp_search with larger k: {mjac_deg} deg,  cm", kwargs)
+                print_v1(f"new mjac after dp_search with larger k: {mjac_deg} deg,  cm", verbosity=self.v)
 
         time_total = time() - t0
         return PlannerResult(
@@ -348,15 +344,15 @@ class CppFlowPlanner(Planner):
         if cfg.do_rerun_if_large_dp_search_mjac:
             mjac_deg, mjac_cm = _get_mjacs(problem.robot, search_qpath)
             if mjac_deg > cfg.rerun_mjac_threshold_deg or mjac_cm > cfg.rerun_mjac_threshold_cm:
-                print_v1(f"rerunning dp_search with larger k b/c mjac is too high: {mjac_deg} deg, {mjac_cm} cm", kwargs)
-                kwargs["k"] = DEFAULT_RERUN_NEW_K
+                print_v1(f"rerunning dp_search with larger k b/c mjac is too high: {mjac_deg} deg, {mjac_cm} cm", verbosity=self.v)
+                cfg.k = DEFAULT_RERUN_NEW_K
                 kwargs["rerun_data"] = q_data
                 search_qpath, is_valid, td, debug_info, q_data = self._run_pipeline(cfg, problem,  **kwargs)
                 mjac_deg, mjac_cm = _get_mjacs(problem.robot, search_qpath)
-                print_v1(f"new mjac after dp_search with larger k: {mjac_deg} deg,  cm", kwargs)
+                print_v1(f"new mjac after dp_search with larger k: {mjac_deg} deg,  cm", verbosity=self.v)
 
-        print_v1("\ndp_search path:", kwargs)
-        print_v1(str(plan_from_qpath(search_qpath, problem)), kwargs)
+        print_v1("\ndp_search path:", verbosity=self.v)
+        print_v1(str(plan_from_qpath(search_qpath, problem)), verbosity=self.v)
 
         # batch_opt was successful
         if is_valid:
@@ -370,16 +366,42 @@ class CppFlowPlanner(Planner):
             )
 
         # batch_opt was not successful - continue to LM optimization
-        with TimerContext(f"running run_lm_optimization()", enabled=VERBOSITY > 0):
+        with TimerContext(f"running run_lm_optimization()", enabled=self.v > 0):
             t0_opt = time()
-            optimization_result = run_lm_optimization(problem, search_qpath, max_n_steps=CppFlowPlanner.DEFAULT_MAX_N_OPTIMIZATION_STEPS, results_df=results_df,verbosity=VERBOSITY)
+
+            # ANYTIME_MODE_ENABLED = True
+            # ANYTIME_MODE_ENABLED = False
+
+            # if ANYTIME_MODE_ENABLED:
+            #     TMAX = 10
+            #     ALTERNATING_LOSS_MAX_N_STEPS = None
+            #     ALTERNATING_LOSS_RETURN_IF_SOL_FOUND_AFTER = None
+            #     ALTERNATING_LOSS_CONVERGENCE_THRESHOLD = 0.005
+            # else:
+            #     TMAX = 1.5
+            #     ALTERNATING_LOSS_MAX_N_STEPS = 20
+            #     ALTERNATING_LOSS_RETURN_IF_SOL_FOUND_AFTER = 15
+            #     ALTERNATING_LOSS_CONVERGENCE_THRESHOLD = 0.3
+
+
+            optimization_result = run_lm_optimization(
+                problem, 
+                search_qpath, 
+                max_n_steps=CppFlowPlanner.DEFAULT_MAX_N_OPTIMIZATION_STEPS,
+                tmax=TODO,
+                max_n_steps=TODO,
+                return_if_valid_after_n_steps=TODO,
+                convergence_threshold=TODO,
+                results_df=results_df,
+                verbosity=self.v
+            )
             time_optimizer = time() - t0_opt
             time_total = time() - t0
             debug_info["n_optimization_steps"] = optimization_result.n_steps_taken
 
         # Optionally rerun if optimization failed
         if not optimization_result.is_valid and cfg.do_rerun_if_optimization_fails and rerun_data is None:
-            print_v1(f"rerunning dp_search because optimization failed", kwargs)
+            print_v1(f"rerunning dp_search because optimization failed", verbosity=self.v)
             kwargs["rerun_data"] = q_data
             return self.generate_plan(problem, cfg, **kwargs)
 
