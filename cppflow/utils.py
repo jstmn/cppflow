@@ -16,23 +16,23 @@ from cppflow.config import DEFAULT_TORCH_DTYPE, DEVICE
 
 
 def print_v1(s, verbosity=0, *args, **kwargs):
-    """ Prints if verbsotity is 1 or greater
-    """
+    """Prints if verbsotity is 1 or greater"""
     if verbosity >= 1:
         print(s, *args, **kwargs)
 
+
 def print_v2(s, verbosity=0, *args, **kwargs):
-    """ Prints if verbsotity is 2 or greater
-    """
+    """Prints if verbsotity is 2 or greater"""
     if verbosity >= 2:
         print(s, *args, **kwargs)
         print(s)
 
+
 def print_v3(s, verbosity=0, *args, **kwargs):
-    """ Prints if verbsotity is 3 or greater
-    """
+    """Prints if verbsotity is 3 or greater"""
     if verbosity >= 3:
         print(s, *args, **kwargs)
+
 
 def _print_kwargs(kwargs, verbosity=0):
     if verbosity < 1:
@@ -78,12 +78,12 @@ def _plot_env_collisions(env_collision_violations: torch.Tensor):
     plt.savefig("debug__env_collision_violations.png", bbox_inches="tight")
     plt.close()
 
+
 def _get_mjacs(robot: Robot, qpath: torch.Tensor):
     qps_revolute, qps_prismatic = robot.split_configs_to_revolute_and_prismatic(qpath)
     if qps_prismatic.numel() > 0:
         return calculate_mjac_deg(qps_revolute), calculate_per_timestep_mjac_cm(qps_prismatic).abs().max().item()
     return calculate_mjac_deg(qps_revolute), 0.0
-
 
 
 TORM_TL_RESULTS = {

@@ -9,7 +9,6 @@ from cppflow_msgs.msg import CppFlowProblem
 from geometry_msgs.msg import Pose, Point, Quaternion
 
 
-
 class CppFlowQueryClient(Node):
     def __init__(self):
         super().__init__("cppflow_publisher")
@@ -45,7 +44,6 @@ class CppFlowQueryClient(Node):
         except Exception as e:
             self.get_logger().error(f"Service call failed: {str(e)}")
 
-
     def send_cached_problem_planning_request(self):
 
         # Load CppFlowQuery_request.bin
@@ -53,7 +51,6 @@ class CppFlowQueryClient(Node):
             request = deserialize_message(f.read(), CppFlowQuery.Request)
         self.get_logger().info(f"Loaded cached problem request 'CppFlowQuery_request.bin'")
         self._send_planning_request(request)
-
 
     def send_dummy_problem_planning_request(self):
         request = CppFlowQuery.Request()
@@ -67,21 +64,19 @@ class CppFlowQueryClient(Node):
         # This is the beginning of the panda__1cube problem
         xyz_offset = np.array([0, 0.5421984559194368, 0.7885155964931997])
         # x, y, z, qw, x, y, z
-        target_path = np.array(
-            [
-                [0.45, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-                [0.44547737, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-                [0.44095477, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-                [0.43643215, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-                [0.43190953, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-                [0.4273869, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-                [0.42286432, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-                [0.4183417, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-                [0.41381907, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-                [0.40929648, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-                [0.40477386, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-            ]
-        )
+        target_path = np.array([
+            [0.45, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+            [0.44547737, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+            [0.44095477, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+            [0.43643215, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+            [0.43190953, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+            [0.4273869, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+            [0.42286432, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+            [0.4183417, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+            [0.41381907, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+            [0.40929648, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+            [0.40477386, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+        ])
         problem = CppFlowProblem()
         problem.waypoints = []
         for waypoint in target_path:
@@ -98,7 +93,6 @@ class CppFlowQueryClient(Node):
         # Send request
         self._send_planning_request(request)
 
-
     def _send_planning_request(self, request):
         future = self.planning_client.call_async(request)
         rclpy.spin_until_future_complete(self, future)
@@ -109,7 +103,9 @@ class CppFlowQueryClient(Node):
                 zip(response.trajectories, response.success, response.errors)
             ):
                 self.get_logger().info(f"Problem {i}: Success = {success}, Error = {error}")
-                self.get_logger().info(f"Trajectory {i}: {trajectory.header}, {trajectory.joint_names}, {len(trajectory.points)} points")
+                self.get_logger().info(
+                    f"Trajectory {i}: {trajectory.header}, {trajectory.joint_names}, {len(trajectory.points)} points"
+                )
         except Exception as e:
             self.get_logger().error(f"Service call failed: {str(e)}")
 

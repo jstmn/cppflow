@@ -265,7 +265,15 @@ def problem_from_filename(
     )
     name = path_name
     return Problem(
-        target_path, None, robot, name, problem_filename, obstacles, obstacles_Tcuboids, obstacles_cuboids, obstacles_klampt
+        target_path,
+        None,
+        robot,
+        name,
+        problem_filename,
+        obstacles,
+        obstacles_Tcuboids,
+        obstacles_cuboids,
+        obstacles_klampt,
     )
 
 

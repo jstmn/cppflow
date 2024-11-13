@@ -16,8 +16,8 @@ from cppflow.config import (
     SUCCESS_THRESHOLD_rotation_ERR_MAX_DEG,
     SUCCESS_THRESHOLD_mjac_DEG,
     SUCCESS_THRESHOLD_mjac_CM,
-    env_collisions_ignored,
-    self_collisions_ignored,
+    ENV_COLLISIONS_IGNORED,
+    SELF_COLLISIONS_IGNORED,
 )
 from cppflow.plan import write_qpath_to_results_df
 from cppflow.lm_hyper_parameters import OptimizationParameters
@@ -35,8 +35,6 @@ from cppflow.collision_detection import (
 
 _SUCCESS_THRESHOLD_translation_ERR_MAX_M = SUCCESS_THRESHOLD_translation_ERR_MAX_CM / 100
 _SUCCESS_THRESHOLD_rotation_ERR_MAX_DEG = np.deg2rad(SUCCESS_THRESHOLD_rotation_ERR_MAX_DEG)
-
-
 
 
 @dataclass
@@ -899,7 +897,7 @@ def x_is_valid(
             continue
 
         # TODO: It could be faster to do this in parallel with self_colliding_configs_capsule()
-        if not self_collisions_ignored:
+        if not SELF_COLLISIONS_IGNORED:
             self_colliding = self_colliding_configs_klampt(problem, x_i)
             # assert (
             #     not self_colliding.any()
@@ -909,7 +907,7 @@ def x_is_valid(
                 continue
 
         # TODO: It could be faster to do this in parallel with configs_are_env_colliding_capsule()
-        if not env_collisions_ignored:
+        if not ENV_COLLISIONS_IGNORED:
             env_colliding = env_colliding_configs_klampt(problem, x_i)
             is_a_env_collision = env_colliding.any()
             # assert (

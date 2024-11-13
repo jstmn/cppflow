@@ -23,7 +23,6 @@ from cppflow.optimization_utils import (
 from cppflow.lm_hyper_parameters import ALT_LOSS_V2_1_POSE, ALT_LOSS_V2_1_DIFF
 
 
-
 @dataclass
 class OptimizationProblem:
     problem: Problem
@@ -149,12 +148,12 @@ def run_lm_alternating_loss(
     opt_state: OptimizationState,
     params_diff: OptimizationParameters,
     params_pose: OptimizationParameters,
-    return_residuals: bool = False,
-    tmax_return_if_no_valid_after: int = 25,
-    tmax: Optional[float] = TMAX,
-    max_n_steps: int = ALTERNATING_LOSS_MAX_N_STEPS,
-    return_if_valid_after_n_steps: int = ALTERNATING_LOSS_RETURN_IF_SOL_FOUND_AFTER,
-    convergence_threshold: float = ALTERNATING_LOSS_CONVERGENCE_THRESHOLD,
+    return_residuals: bool,
+    tmax_return_if_no_valid_after: int,
+    tmax_sec: float,
+    max_n_steps: int,
+    return_if_valid_after_n_steps: int,
+    convergence_threshold: float,
     verbosity: int = 0,
     save_images: bool = False,
     results_df: Optional[Dict] = None,
@@ -166,11 +165,11 @@ def run_lm_alternating_loss(
         levenberg_marquardt_full():      0.03213906288146973 sec for pose-only step
     """
     assert (max_n_steps is None) == (return_if_valid_after_n_steps is None)
-    if tmax is None:
+    if tmax_sec is None:
         assert (max_n_steps is not None) and (return_if_valid_after_n_steps is not None)
         assert return_if_valid_after_n_steps <= max_n_steps
     if max_n_steps is None:
-        assert tmax is not None
+        assert tmax_sec is not None
 
     def calc_TL(qpath):
         qpath_rev, _ = opt_problem.problem.robot.split_configs_to_revolute_and_prismatic(qpath)
@@ -327,26 +326,20 @@ def run_lm_alternating_loss(
             printc(make_text_green_or_red(f"  x is valid, continuing", True))
 
         # return if found a valid solution and we have taken enough steps ('return_if_valid_after_n_steps')
-        if tmax is None:
-            if i >= return_if_valid_after_n_steps and last_valid is not None:
-                printc(make_text_green_or_red(f"  returning last valid x", True))
+        if time() - t0 > tmax_sec:
+            if last_valid is not None:
+                printc(make_text_green_or_red(f"  tmax_sec={tmax_sec} reached, returning last valid trajectory", True))
                 opt_state.x = last_valid.clone()
-                break
-            if i >= max_n_steps:
-                printc(make_text_green_or_red(f"  max_n_steps={max_n_steps} reached, no valid x found", True))
-                break
-        else:
-            if time() - t0 > tmax:
-                printc(make_text_green_or_red(f"  tmax={tmax} reached, returning last valid x", True))
-                opt_state.x = last_valid.clone()
-                break
-            if i > tmax_return_if_no_valid_after and last_valid is None:
-                printc(
-                    make_text_green_or_red(
-                        f"  no valid solution found after {tmax_return_if_no_valid_after} steps, breaking", False
-                    )
+            else:
+                printc(make_text_green_or_red(f"  tmax_sec={tmax_sec} reached, but no valid trajectory found", False))
+            break
+        elif i > tmax_return_if_no_valid_after and last_valid is None:
+            printc(
+                make_text_green_or_red(
+                    f"  no valid solution found after {tmax_return_if_no_valid_after} steps, breaking", False
                 )
-                break
+            )
+            break
 
         i += 1
 
@@ -369,7 +362,7 @@ def run_lm_alternating_loss(
 def run_lm_optimization(
     problem: Problem,
     x_seed: torch.Tensor,
-    tmax: float,
+    tmax_sec: float,
     max_n_steps: int,
     return_if_valid_after_n_steps: int,
     convergence_threshold: float,
@@ -377,7 +370,7 @@ def run_lm_optimization(
     results_df: Optional[Dict] = None,
     verbosity: int = 1,
 ) -> OptimizationResult:
-    """Optimizer a joint angle vector (or multiple simultaneously).
+    """Optimizer a trajectory (or multiple simultaneously).
 
     Args:
         x0 (torch.Tensor): Initial seed(s) for the optimization
@@ -388,13 +381,6 @@ def run_lm_optimization(
         warnings.warn("robot-robot are collisions will be ignored during LM optimization")
     if ENV_COLLISIONS_IGNORED:
         warnings.warn("environment-robot collisions will be ignored during LM optimization")
-
-
-    TODO: use the following:
-        tmax
-        max_n_steps
-        return_if_valid_after_n_steps
-        convergence_threshold
 
     stacked_target_path = (
         problem.target_path if parallel_count == 1 else torch.vstack([problem.target_path] * parallel_count)
@@ -413,6 +399,13 @@ def run_lm_optimization(
         opt_state,
         ALT_LOSS_V2_1_DIFF,
         ALT_LOSS_V2_1_POSE,
+        return_residuals=False,
         verbosity=verbosity,
+        tmax_return_if_no_valid_after=30,
+        tmax_sec=tmax_sec,
+        max_n_steps=max_n_steps,
+        return_if_valid_after_n_steps=return_if_valid_after_n_steps,
+        convergence_threshold=convergence_threshold,
+        save_images=False,
         results_df=results_df,
     )

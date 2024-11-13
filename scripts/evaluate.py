@@ -7,29 +7,20 @@ import os
 import socket
 import psutil
 
-import hydra
-from omegaconf import DictConfig, OmegaConf
 import torch
 import pandas as pd
 
-from cppflow.planners import (
-    PlannerSearcher,
-    CppFlowPlanner,
-    Planner,
-    PlannerResult,
-    TimingData,
-    PlannerSettings
-)
+from cppflow.planners import PlannerSearcher, CppFlowPlanner, Planner, PlannerResult, TimingData, PlannerSettings
 from cppflow.problem import problem_from_filename, get_all_problems, Problem
 from cppflow.utils import set_seed
-from cppflow.config import DEVICE
+from cppflow.config import DEVICE, SELF_COLLISIONS_IGNORED, ENV_COLLISIONS_IGNORED, DEBUG_MODE_ENABLED
 from cppflow.visualization import visualize_plan, plot_plan
 
 torch.set_printoptions(linewidth=120)
 # set_seed()
 
 PLANNERS = {
-    "CppFlowPlanner": CppFlowPlanner,
+    "CppFlowAnytime": CppFlowPlanner,
     "PlannerSearcher": PlannerSearcher,
 }
 
@@ -96,15 +87,9 @@ def eval_planners_on_problem(settings_dict: Dict, save_to_benchmarking: bool = T
     """Run all planners on each problem"""
     # problems = get_all_problems()
     problems = [problem_from_filename("fetch_arm__square")]
-    # problems = [problem_from_filename("panda__square"), problem_from_filename("fetch_arm__square")]
     planner_clcs = [CppFlowPlanner]
-
-    markdown_filepath = f"scripts/problem_performance - {datetime.now().strftime('%m.%d-%H:%M')}.md"
-
     df_all = pd.DataFrame(columns=PD_COLUMN_NAMES)
-
     print("\n---------------------------------")
-
     for i, problem in enumerate(problems):
         print(f"\n\n{i} ======================\n")
         print(problem)
@@ -116,32 +101,7 @@ def eval_planners_on_problem(settings_dict: Dict, save_to_benchmarking: bool = T
             print("\n  ======\n")
             print(planner)
             new_row = _eval_planner_on_problem(planner, problem, settings_dict[planner.name])
-            # df.loc[len(df)] = new_row
-            # df_all.loc[len(df_all)] = new_row
-
-        # print("\ndf:")
-        # print(df)
-        # df_succ = df[df["Valid plan"] != "`false`"].copy()
-        # df_succ = df_succ.drop(["Valid plan", "Mean positional error", "Mean rotational error", "Problem"], axis=1)
-        # df_fail = df[df["Valid plan"] == "`false`"].copy()
-        # df_fail = df_fail.drop(["Valid plan", "Problem"], axis=1)
-
-        # with open(markdown_filepath, "a") as f:
-        #     if i == 0:
-        #         cli_input = "python " + " ".join(sys.argv)
-        #         dt = datetime.now().strftime("%m.%d-%H:%M:%S")
-        #         f.write(f"# Planner results")
-        #         f.write(f"\n\ndt: {dt} | cli_input: `{cli_input}`\n")
-        #         f.write(f"\n\nparams:\n")
-        #         for k, v in kwargs_dict.items():
-        #             f.write(f"- {k}: `{v}`\n")
-        #         f.write(f"\n\n")
-
-        #     f.write(f"\n\n## Problem | **{problem.robot.name}, {problem.name}**")
-        #     f.write(f"\n\nSucceeded:\n")
-        #     f.write(df_succ.to_markdown())
-        #     f.write(f"\n\nFailed:\n")
-        #     f.write(df_fail.to_markdown())
+            df_all.loc[len(df_all)] = new_row
 
     if save_to_benchmarking:
         assert psutil.cpu_count() == multiprocessing.cpu_count()
@@ -255,34 +215,38 @@ Problems:
 
 Example usage:
 
-python scripts/evaluate.py --all_1 --planner CppFlowPlanner
+python scripts/evaluate.py --all_1 --planner CppFlowAnytime
 python scripts/evaluate.py --all_2 --save_to_benchmarking
 
-python scripts/evaluate.py --planner CppFlowPlanner --problem=fetch_arm__circle --visualize
-python scripts/evaluate.py --planner CppFlowPlanner --problem=fetch_arm__hello --visualize
-python scripts/evaluate.py --planner CppFlowPlanner --problem=fetch_arm__rot_yz --visualize
-python scripts/evaluate.py --planner CppFlowPlanner --problem=fetch_arm__rot_yz2 --visualize
-python scripts/evaluate.py --planner CppFlowPlanner --problem=fetch_arm__s --visualize
-python scripts/evaluate.py --planner CppFlowPlanner --problem=fetch_arm__square --visualize
-python scripts/evaluate.py --planner CppFlowPlanner --problem=fetch__circle --visualize
-python scripts/evaluate.py --planner CppFlowPlanner --problem=fetch__hello --visualize
-python scripts/evaluate.py --planner CppFlowPlanner --problem=fetch__rot_yz --visualize
-python scripts/evaluate.py --planner CppFlowPlanner --problem=fetch__rot_yz2 --visualize
-python scripts/evaluate.py --planner CppFlowPlanner --problem=fetch__s --visualize
-python scripts/evaluate.py --planner CppFlowPlanner --problem=fetch__square --visualize
+python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch_arm__circle --visualize
+python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch_arm__hello --visualize
+python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch_arm__rot_yz --visualize
+python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch_arm__rot_yz2 --visualize
+python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch_arm__s --visualize
+python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch_arm__square --visualize
+python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch__circle --visualize
+python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch__hello --visualize
+python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch__rot_yz --visualize
+python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch__rot_yz2 --visualize
+python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch__s --visualize
+python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch__square --visualize
 """
 
 
-def run(args):
+def main(args):
     planner_settings_dict = {
-        "CppFlowPlanner": PlannerSettings(
+        "CppFlowAnytime": PlannerSettings(
             k=175,
+            tmax_sec=5.0,
+            anytime_mode_enabled=False,
             do_rerun_if_large_dp_search_mjac=True,
             do_rerun_if_optimization_fails=True,
             do_return_search_path_mjac=True,
         ),
         "PlannerSearcher": PlannerSettings(
             k=175,
+            tmax_sec=5.0,
+            anytime_mode_enabled=False,
         ),
     }
     planner_settings = planner_settings_dict[args.planner_name]
@@ -295,8 +259,8 @@ def run(args):
             plan = torch.load(args.plan_filepath)
             planner_result = PlannerResult(plan, TimingData(0, 0, 0, 0, 0, 0), [], [], {})
         else:
-            planner: Planner = PLANNERS[args.planner_name](problem.robot)
-            planner_result = planner.generate_plan(problem, planner_settings)
+            planner: Planner = PLANNERS[args.planner_name](planner_settings, problem.robot)
+            planner_result = planner.generate_plan(problem)
 
             # save results to disk
             # torch.save(planner_result.plan, f"pt_tensors/plan__{problem.full_name}__{planner.name}.pt")
@@ -331,6 +295,8 @@ def run(args):
 
 
 if __name__ == "__main__":
+    assert SELF_COLLISIONS_IGNORED == ENV_COLLISIONS_IGNORED == DEBUG_MODE_ENABLED == False
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--planner_name", type=str)
     parser.add_argument("--problem", type=str)
@@ -342,8 +308,4 @@ if __name__ == "__main__":
     parser.add_argument("--save_to_benchmarking", action="store_true")
     args = parser.parse_args()
 
-
-    @hydra.main(config_path=".", config_name="config")
-    def main(cfg):
-        run(args, cfg)
-    main()
+    main(args)

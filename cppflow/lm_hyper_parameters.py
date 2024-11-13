@@ -4,7 +4,6 @@ import warnings
 
 import torch
 
-from cppflow.optimization_utils import OptimizationParameters
 from cppflow.utils import Hashable
 
 
@@ -12,9 +11,11 @@ ALTERNATING_LOSS_MAX_N_STEPS = 20
 ALTERNATING_LOSS_RETURN_IF_SOL_FOUND_AFTER = 15
 ALTERNATING_LOSS_CONVERGENCE_THRESHOLD = 0.3
 
+
 @dataclass
 class OptimizationParameters(Hashable):
     """Parameters for the optimizer"""
+
     seed_w_only_pose: bool
     lm_lambda: float
 

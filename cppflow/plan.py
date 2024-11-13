@@ -10,8 +10,8 @@ from cppflow.config import (
     SUCCESS_THRESHOLD_rotation_ERR_MAX_DEG,
     SUCCESS_THRESHOLD_mjac_DEG,
     SUCCESS_THRESHOLD_mjac_CM,
-    env_collisions_ignored,
-    self_collisions_ignored,
+    ENV_COLLISIONS_IGNORED,
+    SELF_COLLISIONS_IGNORED,
 )
 
 from cppflow.utils import make_text_green_or_red, to_torch
@@ -292,11 +292,11 @@ def plan_from_qpath(qpath: torch.Tensor, problem: Problem) -> Plan:
     # Use klampts collision checker here instead of jrl's capsule-capsule checking. klampt uses the collision
     # geometry of the robot which is a tighter bound.
     self_colliding = self_colliding_configs_klampt(problem, qpath)
-    if self_collisions_ignored:
+    if SELF_COLLISIONS_IGNORED:
         self_colliding = torch.zeros_like(self_colliding)
 
     env_colliding = env_colliding_configs_klampt(problem, qpath)
-    if env_collisions_ignored:
+    if ENV_COLLISIONS_IGNORED:
         env_colliding = torch.zeros_like(env_colliding)
 
     return Plan(

@@ -10,9 +10,6 @@ from cppflow_msgs.srv import CppFlowQuery, CppFlowEnvironmentConfig
 from jrl.robot import Robot
 from jrl.robots import get_robot
 from jrl.utils import to_torch
-import hydra
-from omegaconf import DictConfig
-from hydra.core.hydra_config import HydraConfig
 
 from cppflow.problem import Problem
 from cppflow.ros2.ros2_utils import waypoints_to_se3_sequence, plan_to_ros_trajectory
@@ -42,6 +39,8 @@ PLANNERS = {
 PLANNER_HPARAMS = {
     "CppFlowPlanner": PlannerSettings(
         k=175,
+        tmax_sec=5.0,
+        anytime_mode_enabled=False,
         do_rerun_if_large_dp_search_mjac=True,
         do_rerun_if_optimization_fails=True,
         do_return_search_path_mjac=True,
@@ -69,10 +68,9 @@ class SubscriberNode(Node):
 
         if SAVE_MESSAGES:
             save_filepath = "/tmp/CppFlowEnvironmentConfig_request.bin"
-            with open(save_filepath, 'wb') as file:
+            with open(save_filepath, "wb") as file:
                 file.write(serialize_message(request))
             self.get_logger().info(f"Saved CppFlowEnvironmentConfig request to '{save_filepath}'")
-
 
         # Get robot
         if (self.robot is None) or (self.robot.name != request.jrl_robot_name):
@@ -89,7 +87,10 @@ class SubscriberNode(Node):
         # end effector frame doesn't match
         if self.robot.end_effector_link_name != request.end_effector_frame:
             response.success = False
-            response.error = f"The provided dnd-effector frame '{request.end_effector_frame}' does not match the robot's end-effector link '{self.robot.end_effector_link_name}"
+            response.error = (
+                f"The provided dnd-effector frame '{request.end_effector_frame}' does not match the robot's"
+                f" end-effector link '{self.robot.end_effector_link_name}"
+            )
             self.get_logger().info(f"Returning response: {response}")
             return response
 
@@ -97,7 +98,10 @@ class SubscriberNode(Node):
         robot_base_link_name = self.robot._end_effector_kinematic_chain[0].parent
         if robot_base_link_name != request.base_frame:
             response.success = False
-            response.error = f"The provided base frame '{request.base_frame}' does not match the robot's base link '{robot_base_link_name}"
+            response.error = (
+                f"The provided base frame '{request.base_frame}' does not match the robot's base link"
+                f" '{robot_base_link_name}"
+            )
             self.get_logger().info(f"Returning response: {response}")
             return response
 
@@ -110,40 +114,43 @@ class SubscriberNode(Node):
     def query_callback(self, request, response):
         self.get_logger().info(f"Received a CppFlowQuery message")
 
+        def specify_malformed_query(msg: str):
+            response.is_malformed_query = True
+            response.malformed_query_error = msg
+            self.get_logger().info(f"Returning response: {response}")
+            return response
+
         if SAVE_MESSAGES:
             save_filepath = "/tmp/CppFlowQuery_request.bin"
-            with open(save_filepath, 'wb') as file:
+            with open(save_filepath, "wb") as file:
                 file.write(serialize_message(request))
             self.get_logger().info(f"Saved a CppFlowQuery request to '{save_filepath}'")
 
-
         if len(request.problems) == 0:
-            response.is_malformed_query = True
-            response.malformed_query_error = "No problems provided"
-            self.get_logger().info(f"Returning response: {response}")
-            return response
+            return specify_malformed_query("No problems provided")
 
         if len(request.problems) > 1:
-            response.is_malformed_query = True
-            response.malformed_query_error = "Only 1 planning problem allowed per query currently"
-            self.get_logger().info(f"Returning response: {response}")
-            return response
+            return specify_malformed_query("Only 1 planning problem allowed per query currently")
 
         if self.planner is None:
-            response.is_malformed_query = True
-            response.malformed_query_error = "Planner has not been configured. Send a 'CppFlowEnvironmentConfig' message on the '/cppflow_environment_configuration' topic to configure the scene first."
-            self.get_logger().info(f"Returning response: {response}")
-            return response
+            return specify_malformed_query(
+                "Planner has not been configured. Send a 'CppFlowEnvironmentConfig' message on the"
+                " '/cppflow_environment_configuration' topic to configure the scene first."
+            )
 
         request_problem: CppFlowProblem = request.problems[0]
 
         if len(request_problem.waypoints) < 3:
-            response.is_malformed_query = True
-            response.malformed_query_error = (
+            return specify_malformed_query(
                 f"At least 3 waypoints are required per problem (only {len(request_problem.waypoints)} provided)"
             )
-            self.get_logger().info(f"Returning response: {response}")
-            return response
+
+        settings = PLANNER_HPARAMS[PLANNER]
+        if settings.anytime_mode_enabled:
+            return specify_malformed_query("Anytime mode not supported by the ros2 interface")
+        settings.tmax_sec = request.max_planning_time_sec
+        settings.verbosity = request.verbosity
+        self.planner.set_settings(settings)
 
         # TODO: Add obstacles
         q0 = to_torch(request.initial_configuration.position) if request.initial_configuration_is_set else None
@@ -159,7 +166,7 @@ class SubscriberNode(Node):
             obstacles_klampt=[],
         )
         try:
-            plan = self.planner.generate_plan(problem, PLANNER_HPARAMS[PLANNER]).plan
+            plan = self.planner.generate_plan(problem).plan
         except (RuntimeError, AttributeError) as e:
             tb = traceback.extract_tb(e.__traceback__)[-1]
             filename = tb.filename
@@ -181,10 +188,8 @@ class SubscriberNode(Node):
         return response
 
 
-@hydra.main(config_path=".", config_name="config")
-def main(cfg: DictConfig):
+if __name__ == "__main__":
     rclpy.init()
-    HydraConfig.instance().set_config(cfg)
     node = SubscriberNode()
     try:
         rclpy.spin(node)
@@ -193,7 +198,3 @@ def main(cfg: DictConfig):
     finally:
         node.destroy_node()
         rclpy.shutdown()
-
-
-if __name__ == "__main__":
-    main()
