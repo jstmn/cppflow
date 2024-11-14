@@ -230,6 +230,10 @@ python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch__rot_yz --vi
 python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch__rot_yz2 --visualize
 python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch__s --visualize
 python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch__square --visualize
+python scripts/evaluate.py --planner CppFlowAnytime --problem=panda__1cube_mini --visualize
+python scripts/evaluate.py --planner CppFlowAnytime --problem=panda__1cube --visualize
+python scripts/evaluate.py --planner CppFlowAnytime --problem=panda__2cubes --visualize
+python scripts/evaluate.py --planner CppFlowAnytime --problem=panda__flappy_bird --visualize
 """
 
 
@@ -250,6 +254,8 @@ def main(args):
         ),
     }
     planner_settings = planner_settings_dict[args.planner_name]
+
+    TODO: Add --test_with_starting_configuration 
 
     if args.problem is not None:
         problem = problem_from_filename(args.problem)

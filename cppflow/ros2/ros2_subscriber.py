@@ -156,7 +156,7 @@ class SubscriberNode(Node):
         q0 = to_torch(request.initial_configuration.position) if request.initial_configuration_is_set else None
         problem = Problem(
             target_path=waypoints_to_se3_sequence(request_problem.waypoints),
-            q0=q0,
+            initial_configuration=q0,
             robot=self.robot,
             name="QUERIED-PROBLEM",
             full_name="QUERIED-PROBLEM-full_name",

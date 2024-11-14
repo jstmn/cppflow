@@ -184,20 +184,21 @@ class Planner:
         self,
         ee_path: torch.Tensor,
         batched_latent: torch.Tensor,
+        use_rerun_k: bool,
         clamp_to_joint_limits: bool = True,
     ) -> Tuple[List[torch.Tensor], torch.Tensor]:
         """Returns k different config space paths for the given ee_path."""
         n = ee_path.shape[0]
-
+        k = self._cfg.k if not use_rerun_k else DEFAULT_RERUN_NEW_K
         with torch.inference_mode(), TimerContext("running IKFlow", enabled=self._cfg.verbosity > 0):
-            ee_path_tiled = torch.tile(ee_path, (self._cfg.k, 1))
+            ee_path_tiled = ee_path.repeat((k, 1))
             # TODO: Query model directly (remove 'generate_ik_solutions()' call)
             ikf_sols = self._ikflow_solver.generate_ik_solutions(
                 ee_path_tiled,
                 latent=batched_latent,
                 clamp_to_joint_limits=clamp_to_joint_limits,
             )
-        paths = [ikf_sols[i * n : (i * n) + n, :] for i in range(self._cfg.k)]
+        paths = [ikf_sols[i * n : (i * n) + n, :] for i in range(k)]
         return paths, ee_path_tiled
 
     def _run_pipeline(self, problem: Problem, **kwargs) -> Tuple[torch.Tensor, bool, TimingData]:
@@ -206,7 +207,7 @@ class Planner:
         # ikflow
         t0_ikflow = time()
         batched_latents = self._get_fixed_random_latent(problem.n_timesteps)
-        ikflow_qpaths, _ = self._get_k_ikflow_qpaths(problem.target_path, batched_latents)
+        ikflow_qpaths, _ = self._get_k_ikflow_qpaths(problem.target_path, batched_latents, use_rerun_k=existing_q_data is not None)
         time_ikflow = time() - t0_ikflow
 
         # save initial solution
@@ -248,6 +249,12 @@ class Planner:
             qs = torch.cat([qs_prev, qs], dim=0)
             self_collision_violations = torch.cat([self_collision_violations_prev, self_collision_violations], dim=0)
             env_collision_violations = torch.cat([env_collision_violations_prev, env_collision_violations], dim=0)
+
+        # qs is [ k x n_timesteps x ndof ]
+        if problem.initial_configuration is not None:
+            qs = torch.cat([problem.initial_configuration.expand((self.cfg.k, 1, self.robot.ndof)), qs], dim=0)
+        # print(qs.shape)
+        # exit()
 
         time_coll_check = time() - t0_col_check
         debug_info = {}
@@ -297,7 +304,6 @@ class PlannerSearcher(Planner):
                     f"rerunning dp_search with larger k b/c mjac is too high: {mjac_deg} deg, {mjac_cm} cm",
                     verbosity=self._cfg.verbosity,
                 )
-                self._cfg.k = DEFAULT_RERUN_NEW_K
                 qpath_search, _, td, debug_info, _ = self._run_pipeline(problem, **kwargs)
                 mjac_deg, mjac_cm = _get_mjacs(problem.robot, qpath_search)
                 print_v1(f"new mjac after dp_search with larger k: {mjac_deg} deg,  cm", verbosity=self._cfg.verbosity)
@@ -346,12 +352,10 @@ class CppFlowPlanner(Planner):
                     f"rerunning dp_search with larger k b/c mjac is too high: {mjac_deg} deg, {mjac_cm} cm",
                     verbosity=self._cfg.verbosity,
                 )
-                self._cfg.k = DEFAULT_RERUN_NEW_K
                 kwargs["rerun_data"] = q_data
                 search_qpath, is_valid, td, debug_info, q_data = self._run_pipeline(problem, **kwargs)
                 mjac_deg, mjac_cm = _get_mjacs(problem.robot, search_qpath)
                 print_v1(f"new mjac after dp_search with larger k: {mjac_deg} deg,  cm", verbosity=self._cfg.verbosity)
-                self._cfg.k = initial_k
 
         print_v1("\ndp_search path:", verbosity=self._cfg.verbosity)
         print_v1(str(plan_from_qpath(search_qpath, problem)), verbosity=self._cfg.verbosity)

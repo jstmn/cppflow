@@ -52,7 +52,7 @@ ALL_OBS_PROBLEM_FILENAMES = [
 @dataclass
 class Problem:
     target_path: torch.Tensor
-    q0: Optional[torch.Tensor]
+    initial_configuration: Optional[torch.Tensor]
     robot: Robot
     name: str
     full_name: str
