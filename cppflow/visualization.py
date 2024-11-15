@@ -22,7 +22,6 @@ from cppflow.utils import to_numpy, to_torch
 from cppflow.config import (
     SUCCESS_THRESHOLD_mjac_DEG,
     SUCCESS_THRESHOLD_mjac_CM,
-    SUCCESS_THRESHOLD_translation_ERR_MAX_CM,
     SUCCESS_THRESHOLD_translation_ERR_MAX_MM,
     SUCCESS_THRESHOLD_rotation_ERR_MAX_DEG,
 )
@@ -710,9 +709,7 @@ def visualize_plan(plan: Plan, problem: Problem, time_p_loop: float = 0.1, start
     robot = problem.robot
     background_color = (1, 1, 1, 0.7)
 
-    vis.init("GLUT")  # PyQt is throwing "g_main_context_push_thread_default: assertion 'acquired_context' failed"
-    vis.setBackgroundColor(background_color[0], background_color[1], background_color[2], background_color[3])
-    size = 5
+    size = 3
     for x0 in range(-size, size + 1):
         for y0 in range(-size, size + 1):
             vis.add(
@@ -734,6 +731,8 @@ def visualize_plan(plan: Plan, problem: Problem, time_p_loop: float = 0.1, start
 
     vis.add("world", robot.klampt_world_model)
     robot_klampt_name = vis.getItemName(robot.klampt_world_model.robot(0))[1]
+    # vis.init("GLUT")  # Change to this if PyQt throws "g_main_context_push_thread_default: assertion 'acquired_context' failed"
+    vis.setBackgroundColor(background_color[0], background_color[1], background_color[2], background_color[3])
 
     for i, obs in enumerate(problem.obstacles):
         R = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]

@@ -12,12 +12,12 @@ import pandas as pd
 
 from cppflow.planners import PlannerSearcher, CppFlowPlanner, Planner, PlannerResult, TimingData, PlannerSettings
 from cppflow.problem import problem_from_filename, get_all_problems, Problem
-from cppflow.utils import set_seed
+from cppflow.utils import set_seed, to_torch
 from cppflow.config import DEVICE, SELF_COLLISIONS_IGNORED, ENV_COLLISIONS_IGNORED, DEBUG_MODE_ENABLED
 from cppflow.visualization import visualize_plan, plot_plan
 
 torch.set_printoptions(linewidth=120)
-# set_seed()
+set_seed()
 
 PLANNERS = {
     "CppFlowAnytime": CppFlowPlanner,
@@ -230,22 +230,25 @@ python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch__rot_yz --vi
 python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch__rot_yz2 --visualize
 python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch__s --visualize
 python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch__square --visualize
-python scripts/evaluate.py --planner CppFlowAnytime --problem=panda__1cube_mini --visualize
 python scripts/evaluate.py --planner CppFlowAnytime --problem=panda__1cube --visualize
 python scripts/evaluate.py --planner CppFlowAnytime --problem=panda__2cubes --visualize
 python scripts/evaluate.py --planner CppFlowAnytime --problem=panda__flappy_bird --visualize
+
+python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch_arm__hello_mini --visualize --use_fixed_initial_configuration
+python scripts/evaluate.py --planner CppFlowAnytime --problem=panda__1cube_mini --plot --use_fixed_initial_configuration
 """
 
 
 def main(args):
     planner_settings_dict = {
         "CppFlowAnytime": PlannerSettings(
+            verbosity=2,
             k=175,
             tmax_sec=5.0,
             anytime_mode_enabled=False,
             do_rerun_if_large_dp_search_mjac=True,
-            do_rerun_if_optimization_fails=True,
-            do_return_search_path_mjac=True,
+            do_rerun_if_optimization_fails=False,
+            do_return_search_path_mjac=False,
         ),
         "PlannerSearcher": PlannerSettings(
             k=175,
@@ -255,11 +258,14 @@ def main(args):
     }
     planner_settings = planner_settings_dict[args.planner_name]
 
-    TODO: Add --test_with_starting_configuration 
-
     if args.problem is not None:
         problem = problem_from_filename(args.problem)
         print(problem)
+
+        if args.use_fixed_initial_configuration:
+            initial_configuration = problem.robot.inverse_kinematics_klampt(problem.target_path[0].cpu().numpy())
+            problem.initial_configuration = to_torch(initial_configuration).view(1, problem.robot.ndof)
+
 
         if args.plan_filepath is not None:
             plan = torch.load(args.plan_filepath)
@@ -312,6 +318,7 @@ if __name__ == "__main__":
     parser.add_argument("--all_1", action="store_true")
     parser.add_argument("--all_2", action="store_true")
     parser.add_argument("--save_to_benchmarking", action="store_true")
+    parser.add_argument("--use_fixed_initial_configuration", action="store_true")
     args = parser.parse_args()
 
     main(args)

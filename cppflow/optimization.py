@@ -149,7 +149,6 @@ def run_lm_alternating_loss(
     params_diff: OptimizationParameters,
     params_pose: OptimizationParameters,
     return_residuals: bool,
-    tmax_return_if_no_valid_after: int,
     tmax_sec: float,
     max_n_steps: int,
     return_if_valid_after_n_steps: int,
@@ -175,8 +174,9 @@ def run_lm_alternating_loss(
         qpath_rev, _ = opt_problem.problem.robot.split_configs_to_revolute_and_prismatic(qpath)
         return angular_changes(qpath_rev).abs().sum().item()
 
+    printout_enabled = verbosity > 1
     def printc(*args, **_kwargs):
-        if verbosity > 0:
+        if printout_enabled:
             print(*args, **_kwargs)
 
     params_diff = OptimizationParameters(
@@ -231,7 +231,7 @@ def run_lm_alternating_loss(
         printc("i:", i)
 
         # printout metrics for current x
-        if verbosity > 0:
+        if printout_enabled:
             s = ""
             for txt, val in zip(
                 ("pose.pos", "pose.rot", "mjac.rev", "mjac.pri"),
@@ -333,10 +333,10 @@ def run_lm_alternating_loss(
             else:
                 printc(make_text_green_or_red(f"  tmax_sec={tmax_sec} reached, but no valid trajectory found", False))
             break
-        elif i > tmax_return_if_no_valid_after and last_valid is None:
+        elif i > max_n_steps and last_valid is None:
             printc(
                 make_text_green_or_red(
-                    f"  no valid solution found after {tmax_return_if_no_valid_after} steps, breaking", False
+                    f"  no valid solution found after {max_n_steps} steps, breaking", False
                 )
             )
             break
@@ -401,7 +401,6 @@ def run_lm_optimization(
         ALT_LOSS_V2_1_POSE,
         return_residuals=False,
         verbosity=verbosity,
-        tmax_return_if_no_valid_after=30,
         tmax_sec=tmax_sec,
         max_n_steps=max_n_steps,
         return_if_valid_after_n_steps=return_if_valid_after_n_steps,
