@@ -49,10 +49,10 @@ ALL_OBS_PROBLEM_FILENAMES = [
 ]
 
 
-# TODO: Design, implement an interpolation strategy
 @dataclass
 class Problem:
     target_path: torch.Tensor
+    initial_configuration: Optional[torch.Tensor]
     robot: Robot
     name: str
     full_name: str
@@ -265,7 +265,15 @@ def problem_from_filename(
     )
     name = path_name
     return Problem(
-        target_path, robot, name, problem_filename, obstacles, obstacles_Tcuboids, obstacles_cuboids, obstacles_klampt
+        target_path,
+        None,
+        robot,
+        name,
+        problem_filename,
+        obstacles,
+        obstacles_Tcuboids,
+        obstacles_cuboids,
+        obstacles_klampt,
     )
 
 

@@ -10,23 +10,18 @@ import psutil
 import torch
 import pandas as pd
 
-from cppflow.planners import (
-    PlannerSearcher,
-    CppFlowPlanner,
-    Planner,
-    PlannerResult,
-    TimingData,
-)
+from cppflow.planners import PlannerSearcher, CppFlowPlanner, Planner, PlannerResult, TimingData, PlannerSettings
 from cppflow.problem import problem_from_filename, get_all_problems, Problem
-from cppflow.utils import set_seed
-from cppflow.config import DEVICE
+from cppflow.utils import set_seed, to_torch
+from cppflow.config import DEVICE, SELF_COLLISIONS_IGNORED, ENV_COLLISIONS_IGNORED, DEBUG_MODE_ENABLED
 from cppflow.visualization import visualize_plan, plot_plan
+from cppflow.collision_detection import qpaths_batched_self_collisions, qpaths_batched_env_collisions
 
 torch.set_printoptions(linewidth=120)
-# set_seed()
+set_seed()
 
 PLANNERS = {
-    "CppFlowPlanner": CppFlowPlanner,
+    "CppFlowAnytime": CppFlowPlanner,
     "PlannerSearcher": PlannerSearcher,
 }
 
@@ -53,8 +48,8 @@ PD_COLUMN_NAMES = [
 ]
 
 
-def _eval_planner_on_problem(planner: Type[Planner], problem: Problem, kwargs: Dict):
-    result = planner.generate_plan(problem, **kwargs)
+def _eval_planner_on_problem(planner: Type[Planner], problem: Problem, planner_settings: PlannerSettings):
+    result = planner.generate_plan(problem, planner_settings)
     print()
     print(result.plan)
     print()
@@ -89,19 +84,13 @@ def _eval_planner_on_problem(planner: Type[Planner], problem: Problem, kwargs: D
 
 
 # TODO: update to only use LmFull. Or move this to a new script that's just for saving data to the paper repo
-def eval_planners_on_problem(kwargs_dict: Dict, save_to_benchmarking: bool = True):
+def eval_planners_on_problem(settings_dict: Dict, save_to_benchmarking: bool = True):
     """Run all planners on each problem"""
     # problems = get_all_problems()
     problems = [problem_from_filename("fetch_arm__square")]
-    # problems = [problem_from_filename("panda__square"), problem_from_filename("fetch_arm__square")]
     planner_clcs = [CppFlowPlanner]
-
-    markdown_filepath = f"scripts/problem_performance - {datetime.now().strftime('%m.%d-%H:%M')}.md"
-
     df_all = pd.DataFrame(columns=PD_COLUMN_NAMES)
-
     print("\n---------------------------------")
-
     for i, problem in enumerate(problems):
         print(f"\n\n{i} ======================\n")
         print(problem)
@@ -112,33 +101,8 @@ def eval_planners_on_problem(kwargs_dict: Dict, save_to_benchmarking: bool = Tru
             planner = planner_clc(problem.robot)
             print("\n  ======\n")
             print(planner)
-            new_row = _eval_planner_on_problem(planner, problem, kwargs_dict[planner.name])
-            # df.loc[len(df)] = new_row
-            # df_all.loc[len(df_all)] = new_row
-
-        # print("\ndf:")
-        # print(df)
-        # df_succ = df[df["Valid plan"] != "`false`"].copy()
-        # df_succ = df_succ.drop(["Valid plan", "Mean positional error", "Mean rotational error", "Problem"], axis=1)
-        # df_fail = df[df["Valid plan"] == "`false`"].copy()
-        # df_fail = df_fail.drop(["Valid plan", "Problem"], axis=1)
-
-        # with open(markdown_filepath, "a") as f:
-        #     if i == 0:
-        #         cli_input = "python " + " ".join(sys.argv)
-        #         dt = datetime.now().strftime("%m.%d-%H:%M:%S")
-        #         f.write(f"# Planner results")
-        #         f.write(f"\n\ndt: {dt} | cli_input: `{cli_input}`\n")
-        #         f.write(f"\n\nparams:\n")
-        #         for k, v in kwargs_dict.items():
-        #             f.write(f"- {k}: `{v}`\n")
-        #         f.write(f"\n\n")
-
-        #     f.write(f"\n\n## Problem | **{problem.robot.name}, {problem.name}**")
-        #     f.write(f"\n\nSucceeded:\n")
-        #     f.write(df_succ.to_markdown())
-        #     f.write(f"\n\nFailed:\n")
-        #     f.write(df_fail.to_markdown())
+            new_row = _eval_planner_on_problem(planner, problem, settings_dict[planner.name])
+            df_all.loc[len(df_all)] = new_row
 
     if save_to_benchmarking:
         assert psutil.cpu_count() == multiprocessing.cpu_count()
@@ -149,7 +113,9 @@ def eval_planners_on_problem(kwargs_dict: Dict, save_to_benchmarking: bool = Tru
             f.write(f"# Parameters")
             f.write(f"\n\ndt: {now_str} | cli_input: `{cli_input}`\n")
             f.write(f"\n\nparams:\n")
-            for k, v in kwargs_dict.items():
+            for k, v in settings_dict.__dict__.items():
+                if k[0] == "_":
+                    continue
                 f.write(f"- {k}: `{v}`\n")
             f.write(f"\n\n")
             f.write(f"\n\ncomputer:\n")
@@ -160,7 +126,7 @@ def eval_planners_on_problem(kwargs_dict: Dict, save_to_benchmarking: bool = Tru
             f.write(f"\n\n")
 
 
-def eval_planner_on_problems(planner_name: str, kwargs: Dict):
+def eval_planner_on_problems(planner_name: str, planner_settings: PlannerSettings):
     """Evaluate a planner on the given problems"""
     # problems = get_all_problems()
     problems = [
@@ -177,7 +143,7 @@ def eval_planner_on_problems(planner_name: str, kwargs: Dict):
     for problem, planner in zip(problems, planners):
         print("\n---------------------------------")
         print(problem)
-        new_row, is_valid = _eval_planner_on_problem(planner, problem, kwargs)
+        new_row, is_valid = _eval_planner_on_problem(planner, problem, planner_settings)
         assert len(new_row) == len(PD_COLUMN_NAMES), (
             f"len(new_row)={len(new_row)} != len(PD_COLUMN_NAMES)={len(PD_COLUMN_NAMES)}\n. Column:"
             f" {PD_COLUMN_NAMES}\nrow: {new_row}"
@@ -198,7 +164,7 @@ def eval_planner_on_problems(planner_name: str, kwargs: Dict):
         cli_input = "python " + " ".join(sys.argv)
         f.write(f"\n\n**{dt}** | Generated with `{cli_input}`")
         f.write(f"\n\nPlanner: **{planner.name}**")
-        f.write(f"\n\nparams: `{kwargs}`\n\n")
+        f.write(f"\n\nparams: `{planner_settings}`\n\n")
         f.write(df.to_markdown())
 
         valid_text = "\n```\n"
@@ -231,6 +197,20 @@ def eval_planner_on_problems(planner_name: str, kwargs: Dict):
     print(df)
 
 
+def get_initial_configuration(problem: Problem):
+    for _ in range(25):
+        initial_configuration = to_torch(
+            problem.robot.inverse_kinematics_klampt(problem.target_path[0].cpu().numpy())
+        ).view(1, 1, problem.robot.ndof)
+        if not (
+            qpaths_batched_env_collisions(problem, initial_configuration)
+            or qpaths_batched_self_collisions(problem, initial_configuration)
+        ):
+            print(f"Initial configuration {initial_configuration} is collision free")
+            return initial_configuration.view(1, problem.robot.ndof)
+    raise RuntimeError("Could not find collision free initial configuration")
+
+
 """
 
 Problems:
@@ -250,62 +230,86 @@ Problems:
 
 Example usage:
 
-python scripts/evaluate.py --all_1 --planner CppFlowPlanner
+python scripts/evaluate.py --all_1 --planner CppFlowAnytime
 python scripts/evaluate.py --all_2 --save_to_benchmarking
 
-python scripts/evaluate.py --planner CppFlowPlanner --problem=fetch_arm__circle --visualize
-python scripts/evaluate.py --planner CppFlowPlanner --problem=fetch_arm__hello --visualize
-python scripts/evaluate.py --planner CppFlowPlanner --problem=fetch_arm__rot_yz --visualize
-python scripts/evaluate.py --planner CppFlowPlanner --problem=fetch_arm__rot_yz2 --visualize
-python scripts/evaluate.py --planner CppFlowPlanner --problem=fetch_arm__s --visualize
-python scripts/evaluate.py --planner CppFlowPlanner --problem=fetch_arm__square --visualize
-python scripts/evaluate.py --planner CppFlowPlanner --problem=fetch__circle --visualize
-python scripts/evaluate.py --planner CppFlowPlanner --problem=fetch__hello --visualize
-python scripts/evaluate.py --planner CppFlowPlanner --problem=fetch__rot_yz --visualize
-python scripts/evaluate.py --planner CppFlowPlanner --problem=fetch__rot_yz2 --visualize
-python scripts/evaluate.py --planner CppFlowPlanner --problem=fetch__s --visualize
-python scripts/evaluate.py --planner CppFlowPlanner --problem=fetch__square --visualize
+python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch_arm__circle --visualize
+python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch_arm__hello --visualize
+python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch_arm__rot_yz --visualize
+python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch_arm__rot_yz2 --visualize
+python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch_arm__s --visualize
+python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch_arm__square --visualize
+python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch__circle --visualize
+python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch__hello --visualize
+python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch__rot_yz --visualize
+python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch__rot_yz2 --visualize
+python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch__s --visualize
+python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch__square --visualize
+python scripts/evaluate.py --planner CppFlowAnytime --problem=panda__1cube --visualize
+python scripts/evaluate.py --planner CppFlowAnytime --problem=panda__2cubes --visualize
+python scripts/evaluate.py --planner CppFlowAnytime --problem=panda__flappy_bird --visualize
+
+python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch_arm__hello_mini --visualize --use_fixed_initial_configuration
+python scripts/evaluate.py --planner CppFlowAnytime --problem=panda__1cube_mini --plot --use_fixed_initial_configuration
+
+python scripts/evaluate.py --planner CppFlowAnytime --problem=panda__1cube_mini --plan_filepath=many_env_collisions[0].pt
 """
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--planner_name", type=str)
-    parser.add_argument("--problem", type=str)
-    parser.add_argument("--visualize", action="store_true")
-    parser.add_argument("--plan_filepath", type=str)
-    parser.add_argument("--plot", action="store_true")
-    parser.add_argument("--all_1", action="store_true")
-    parser.add_argument("--all_2", action="store_true")
-    parser.add_argument("--save_to_benchmarking", action="store_true")
-    args = parser.parse_args()
 
-    kwargs_dict = {
-        "CppFlowPlanner": {
-            "k": 175,
-            "verbosity": 2,
-            "do_rerun_if_large_dp_search_mjac": True,
-            "do_rerun_if_optimization_fails": True,
-            "do_return_search_path_mjac": True,
-        },
-        "PlannerSearcher": {"k": 175, "verbosity": 2},
+def main(args):
+    planner_settings_dict = {
+        "CppFlowAnytime": PlannerSettings(
+            verbosity=2,
+            k=175,
+            tmax_sec=5.0,
+            anytime_mode_enabled=False,
+            do_rerun_if_large_dp_search_mjac=True,
+            do_rerun_if_optimization_fails=False,
+            do_return_search_path_mjac=False,
+        ),
+        "CppFlowAnytime_fixed_q0": PlannerSettings(
+            verbosity=2,
+            k=175,
+            tmax_sec=3.0,
+            anytime_mode_enabled=False,
+            latent_vector_scale=0.5,
+            do_rerun_if_large_dp_search_mjac=False,
+            do_rerun_if_optimization_fails=False,
+            do_return_search_path_mjac=False,
+        ),
+        "PlannerSearcher": PlannerSettings(
+            k=175,
+            tmax_sec=5.0,
+            anytime_mode_enabled=False,
+        ),
     }
+    planner_settings = (
+        planner_settings_dict[args.planner_name]
+        if not args.use_fixed_initial_configuration
+        else planner_settings_dict[args.planner_name + "_fixed_q0"]
+    )
 
     if args.problem is not None:
         problem = problem_from_filename(args.problem)
         print(problem)
 
+        if args.use_fixed_initial_configuration:
+            problem.initial_configuration = get_initial_configuration()
+
         if args.plan_filepath is not None:
             plan = torch.load(args.plan_filepath)
             planner_result = PlannerResult(plan, TimingData(0, 0, 0, 0, 0, 0), [], [], {})
         else:
-            planner: Planner = PLANNERS[args.planner_name](problem.robot)
-            planner_result = planner.generate_plan(problem, **kwargs_dict[planner.name])
+            planner: Planner = PLANNERS[args.planner_name](planner_settings, problem.robot)
+            planner_result = planner.generate_plan(problem)
 
             # save results to disk
             # torch.save(planner_result.plan, f"pt_tensors/plan__{problem.full_name}__{planner.name}.pt")
             # df = pd.DataFrame(planner_result.plan.q_path.cpu().numpy())
             # df.to_csv(f"pt_tensors/plan__{problem.full_name}__{planner.name}.csv", index=False)
 
+            print()
+            print("   ======   Planner result   ======")
             print()
             print(planner_result.plan)
             print()
@@ -327,8 +331,25 @@ if __name__ == "__main__":
             visualize_plan(planner_result.plan, problem, start_delay=3)
 
     if args.all_1:
-        kwargs = kwargs_dict[args.planner_name]
-        eval_planner_on_problems(args.planner_name, kwargs)
+        eval_planner_on_problems(args.planner_name, planner_settings)
 
     elif args.all_2:
-        eval_planners_on_problem(kwargs_dict, args.save_to_benchmarking)
+        eval_planners_on_problem(planner_settings_dict, args.save_to_benchmarking)
+
+
+if __name__ == "__main__":
+    assert SELF_COLLISIONS_IGNORED == ENV_COLLISIONS_IGNORED == DEBUG_MODE_ENABLED == False
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--planner_name", type=str)
+    parser.add_argument("--problem", type=str)
+    parser.add_argument("--visualize", action="store_true")
+    parser.add_argument("--plan_filepath", type=str)
+    parser.add_argument("--plot", action="store_true")
+    parser.add_argument("--all_1", action="store_true")
+    parser.add_argument("--all_2", action="store_true")
+    parser.add_argument("--save_to_benchmarking", action="store_true")
+    parser.add_argument("--use_fixed_initial_configuration", action="store_true")
+    args = parser.parse_args()
+
+    main(args)

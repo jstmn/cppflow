@@ -1,7 +1,6 @@
 from . import collision_detection
 from . import evaluation_utils
 from . import lm_hyper_parameters
-from . import math_utils
 from . import optimization_utils
 from . import optimization
 from . import plan
@@ -16,7 +15,6 @@ __all__ = [
     "collision_detection",
     "evaluation_utils",
     "lm_hyper_parameters",
-    "math_utils",
     "optimization_utils",
     "optimization",
     "plan",

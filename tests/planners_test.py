@@ -207,10 +207,10 @@ class PlannerTest(unittest.TestCase):
         k = 15
         target_path_n_waypoints = 300
         distribution = "uniform"
-        latent_scale_parameter = 1.5
+        latent_vector_scale = 1.5
         per_k_or_timestep = "per_k"
         latent = self.mocked_planner._get_fixed_random_latent(
-            k, target_path_n_waypoints, distribution, latent_scale_parameter, per_k_or_timestep
+            k, target_path_n_waypoints, distribution, latent_vector_scale, per_k_or_timestep
         )
         # Test that the latents are nearly uniform, and also that there are k unique ones
         self.assertEqual(latent.shape, (4500, 9))
@@ -220,7 +220,7 @@ class PlannerTest(unittest.TestCase):
         # gaussian
         distribution = "gaussian"
         latent = self.mocked_planner._get_fixed_random_latent(
-            k, target_path_n_waypoints, distribution, latent_scale_parameter, per_k_or_timestep
+            k, target_path_n_waypoints, distribution, latent_vector_scale, per_k_or_timestep
         )
         self.assertEqual(latent.shape, (4500, 9))
         self.assert_latent_is_per_k(latent, target_path_n_waypoints, k)
@@ -230,10 +230,10 @@ class PlannerTest(unittest.TestCase):
         k = 5
         target_path_n_waypoints = 25
         distribution = "uniform"
-        latent_scale_parameter = 3.0
+        latent_vector_scale = 3.0
         per_k_or_timestep = "per_timestep"
         latent = self.mocked_planner._get_fixed_random_latent(
-            k, target_path_n_waypoints, distribution, latent_scale_parameter, per_k_or_timestep
+            k, target_path_n_waypoints, distribution, latent_vector_scale, per_k_or_timestep
         )
         # Test that the latents are nearly uniform, and also that they are all unique
         self.assertEqual(latent.shape, (125, 9))
@@ -242,7 +242,7 @@ class PlannerTest(unittest.TestCase):
 
         distribution = "gaussian"
         latent = self.mocked_planner._get_fixed_random_latent(
-            k, target_path_n_waypoints, distribution, latent_scale_parameter, per_k_or_timestep
+            k, target_path_n_waypoints, distribution, latent_vector_scale, per_k_or_timestep
         )
         self.assertEqual(latent.shape, (125, 9))
         self.assert_tensor_is_unique(latent)

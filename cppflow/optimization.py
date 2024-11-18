@@ -1,6 +1,7 @@
 from dataclasses import dataclass
-from typing import Optional, List, Tuple, Dict
+from typing import Optional, Dict
 from time import time
+import warnings
 
 import torch
 from jrl.utils import safe_mkdir
@@ -10,6 +11,7 @@ from cppflow.utils import make_text_green_or_red
 from cppflow.problem import Problem
 from cppflow.plan import write_qpath_to_results_df
 from cppflow.evaluation_utils import angular_changes
+from cppflow.config import SELF_COLLISIONS_IGNORED, ENV_COLLISIONS_IGNORED
 
 from cppflow.optimization_utils import (
     x_is_valid,
@@ -19,26 +21,6 @@ from cppflow.optimization_utils import (
     LmResidualFns,
 )
 from cppflow.lm_hyper_parameters import ALT_LOSS_V2_1_POSE, ALT_LOSS_V2_1_DIFF
-
-# ALT_LOSS_ANYTIME_MODE_ENABLED = True
-ALT_LOSS_ANYTIME_MODE_ENABLED = False
-
-if ALT_LOSS_ANYTIME_MODE_ENABLED:
-    # TMAX = 60
-    TMAX = 10
-    # TMAX = 20
-    ALTERNATING_LOSS_MAX_N_STEPS = None
-    ALTERNATING_LOSS_RETURN_IF_SOL_FOUND_AFTER = None
-    ALTERNATING_LOSS_CONVERGENCE_THRESHOLD = 0.005
-else:
-    TMAX = 1.5
-    ALTERNATING_LOSS_MAX_N_STEPS = 20
-    ALTERNATING_LOSS_RETURN_IF_SOL_FOUND_AFTER = 15
-    ALTERNATING_LOSS_CONVERGENCE_THRESHOLD = 0.3
-
-# LmAlt - v2.1
-_DEFAULT_ALT_LOSS_HPARAMS_DIFFERENCING = ALT_LOSS_V2_1_DIFF
-_DEFAULT_ALT_LOSS_HPARAMS_POSE = ALT_LOSS_V2_1_POSE
 
 
 @dataclass
@@ -166,12 +148,11 @@ def run_lm_alternating_loss(
     opt_state: OptimizationState,
     params_diff: OptimizationParameters,
     params_pose: OptimizationParameters,
-    return_residuals: bool = False,
-    tmax: Optional[float] = TMAX,
-    tmax_return_if_no_valid_after: int = 25,
-    max_n_steps: int = ALTERNATING_LOSS_MAX_N_STEPS,
-    return_if_valid_after_n_steps: int = ALTERNATING_LOSS_RETURN_IF_SOL_FOUND_AFTER,
-    convergence_threshold: float = ALTERNATING_LOSS_CONVERGENCE_THRESHOLD,
+    return_residuals: bool,
+    tmax_sec: float,
+    max_n_steps: int,
+    return_if_valid_after_n_steps: int,
+    convergence_threshold: float,
     verbosity: int = 0,
     save_images: bool = False,
     results_df: Optional[Dict] = None,
@@ -183,18 +164,20 @@ def run_lm_alternating_loss(
         levenberg_marquardt_full():      0.03213906288146973 sec for pose-only step
     """
     assert (max_n_steps is None) == (return_if_valid_after_n_steps is None)
-    if tmax is None:
+    if tmax_sec is None:
         assert (max_n_steps is not None) and (return_if_valid_after_n_steps is not None)
         assert return_if_valid_after_n_steps <= max_n_steps
     if max_n_steps is None:
-        assert tmax is not None
+        assert tmax_sec is not None
 
     def calc_TL(qpath):
         qpath_rev, _ = opt_problem.problem.robot.split_configs_to_revolute_and_prismatic(qpath)
         return angular_changes(qpath_rev).abs().sum().item()
 
+    printout_enabled = verbosity > 1
+
     def printc(*args, **_kwargs):
-        if verbosity > 0:
+        if printout_enabled:
             print(*args, **_kwargs)
 
     params_diff = OptimizationParameters(
@@ -249,7 +232,7 @@ def run_lm_alternating_loss(
         printc("i:", i)
 
         # printout metrics for current x
-        if verbosity > 0:
+        if printout_enabled:
             s = ""
             for txt, val in zip(
                 ("pose.pos", "pose.rot", "mjac.rev", "mjac.pri"),
@@ -331,7 +314,7 @@ def run_lm_alternating_loss(
             x_sol,
             _,
             (pose_pos_valid, pose_rot_valid, mjac_rev_valid, mjac_pris_valid, is_a_self_collision, is_a_env_collision),
-        ) = x_is_valid(opt_problem.problem, opt_problem.target_path, opt_state.x, 1)
+        ) = x_is_valid(opt_problem.problem, opt_problem.target_path, opt_state.x, parallel_count=1, verbosity=verbosity)
         if x_sol is not None:
             last_valid_idx = i
             last_valid = opt_state.x.clone()
@@ -344,26 +327,16 @@ def run_lm_alternating_loss(
             printc(make_text_green_or_red(f"  x is valid, continuing", True))
 
         # return if found a valid solution and we have taken enough steps ('return_if_valid_after_n_steps')
-        if tmax is None:
-            if i >= return_if_valid_after_n_steps and last_valid is not None:
-                printc(make_text_green_or_red(f"  returning last valid x", True))
+        if time() - t0 > tmax_sec:
+            if last_valid is not None:
+                printc(make_text_green_or_red(f"  tmax_sec={tmax_sec} reached, returning last valid trajectory", True))
                 opt_state.x = last_valid.clone()
-                break
-            if i >= max_n_steps:
-                printc(make_text_green_or_red(f"  max_n_steps={max_n_steps} reached, no valid x found", True))
-                break
-        else:
-            if time() - t0 > tmax:
-                printc(make_text_green_or_red(f"  tmax={tmax} reached, returning last valid x", True))
-                opt_state.x = last_valid.clone()
-                break
-            if i > tmax_return_if_no_valid_after and last_valid is None:
-                printc(
-                    make_text_green_or_red(
-                        f"  no valid solution found after {tmax_return_if_no_valid_after} steps, breaking", False
-                    )
-                )
-                break
+            else:
+                printc(make_text_green_or_red(f"  tmax_sec={tmax_sec} reached, but no valid trajectory found", False))
+            break
+        elif i > max_n_steps and last_valid is None:
+            printc(make_text_green_or_red(f"  no valid solution found after {max_n_steps} steps, breaking", False))
+            break
 
         i += 1
 
@@ -386,20 +359,26 @@ def run_lm_alternating_loss(
 def run_lm_optimization(
     problem: Problem,
     x_seed: torch.Tensor,
-    opt_params_alternating_diff: Optional[OptimizationParameters] = _DEFAULT_ALT_LOSS_HPARAMS_DIFFERENCING,
-    opt_params_alternating_pose: Optional[OptimizationParameters] = _DEFAULT_ALT_LOSS_HPARAMS_POSE,
-    max_n_steps: int = 25,
+    tmax_sec: float,
+    max_n_steps: int,
+    return_if_valid_after_n_steps: int,
+    convergence_threshold: float,
     parallel_count: int = 1,
     results_df: Optional[Dict] = None,
     verbosity: int = 1,
 ) -> OptimizationResult:
-    """Optimizer a joint angle vector (or multiple simultaneously).
+    """Optimizer a trajectory (or multiple simultaneously).
 
     Args:
         x0 (torch.Tensor): Initial seed(s) for the optimization
         max_n_steps (int): Number of steps to optimize for
         parallel_count (int): Number of seeds. This optimizer is agnostic to the number of initial qpath seeds used.
     """
+    if SELF_COLLISIONS_IGNORED:
+        warnings.warn("robot-robot are collisions will be ignored during LM optimization")
+    if ENV_COLLISIONS_IGNORED:
+        warnings.warn("environment-robot collisions will be ignored during LM optimization")
+
     stacked_target_path = (
         problem.target_path if parallel_count == 1 else torch.vstack([problem.target_path] * parallel_count)
     )
@@ -415,8 +394,14 @@ def run_lm_optimization(
     return run_lm_alternating_loss(
         opt_problem,
         opt_state,
-        opt_params_alternating_diff,
-        opt_params_alternating_pose,
+        ALT_LOSS_V2_1_DIFF,
+        ALT_LOSS_V2_1_POSE,
+        return_residuals=False,
         verbosity=verbosity,
+        tmax_sec=tmax_sec,
+        max_n_steps=max_n_steps,
+        return_if_valid_after_n_steps=return_if_valid_after_n_steps,
+        convergence_threshold=convergence_threshold,
+        save_images=False,
         results_df=results_df,
     )

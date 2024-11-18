@@ -9,7 +9,7 @@ import numpy as np
 from jrl.math_utils import quaternion_inverse, quaternion_product, quaternion_to_rpy, angular_subtraction
 from jrl.robot import Robot
 
-from cppflow.utils import Hashable, cm_to_m, make_text_green_or_red
+from cppflow.utils import cm_to_m, make_text_green_or_red
 from cppflow.problem import Problem
 from cppflow.config import (
     SUCCESS_THRESHOLD_translation_ERR_MAX_CM,
@@ -20,6 +20,7 @@ from cppflow.config import (
     SELF_COLLISIONS_IGNORED,
 )
 from cppflow.plan import write_qpath_to_results_df
+from cppflow.lm_hyper_parameters import OptimizationParameters
 from cppflow.evaluation_utils import (
     angular_changes,
     prismatic_changes,
@@ -34,119 +35,6 @@ from cppflow.collision_detection import (
 
 _SUCCESS_THRESHOLD_translation_ERR_MAX_M = SUCCESS_THRESHOLD_translation_ERR_MAX_CM / 100
 _SUCCESS_THRESHOLD_rotation_ERR_MAX_DEG = np.deg2rad(SUCCESS_THRESHOLD_rotation_ERR_MAX_DEG)
-
-
-@dataclass
-class OptimizationParameters(Hashable):
-    """Parameters for the optimizer"""
-
-    seed_w_only_pose: bool
-    do_use_penalty_method: bool
-    lm_lambda: float
-
-    # --- Alphas
-    alpha_position: float
-    alpha_rotation: float
-    alpha_differencing: float
-    alpha_differencing_prismatic_scaling: float
-    # note: 'alpha_virtual_configs' multiplies 'alpha_differencing' to get the final scaling term
-    alpha_virtual_configs: float
-    alpha_self_collision: float
-    alpha_env_collision: float
-
-    # --- Pose error
-    use_pose: bool
-    pose_do_scale_down_satisfied: bool
-    pose_ignore_satisfied_threshold_scale: float
-    pose_ignore_satisfied_scale_down: float
-
-    # --- Differencing error
-    use_differencing: bool
-    differencing_do_ignore_satisfied: bool
-    differencing_ignore_satisfied_margin_deg: float
-    differencing_ignore_satisfied_margin_cm: float
-    # scale down satisfied differencing errors instead of filtering them out
-    differencing_do_scale_satisfied: bool
-    differencing_scale_down_satisfied_scale: float
-    differencing_scale_down_satisfied_shift_invalid_to_threshold: (
-        bool  # TODO: test out differencing_scale_down_satisfied_shift_invalid_to_threshold
-    )
-
-    # ignore differencing errors on timesteps where the pose error is above the threshold
-    # differencing_do_scale_down_near_pose_error_spikes: bool
-    # differencing_scale_down_near_pose_error_spikes_scale: float
-    # differencing_scale_down_near_pose_error_spikes_n_timesteps: int
-
-    # --- Virtual configs
-    use_virtual_configs: bool
-    virtual_configs: Optional[torch.Tensor]
-    n_virtual_configs: int
-
-    # --- Collisions
-    use_self_collisions: bool
-    use_env_collisions: bool
-
-    def __post_init__(self):
-        # if self.differencing_do_scale_down_near_pose_error_spikes:
-        #     assert self.differencing_scale_down_near_pose_error_spikes_n_timesteps > 0
-        #     assert 0 <= self.differencing_scale_down_near_pose_error_spikes_scale < 1
-        #     assert self.differencing_do_scale_satisfied
-
-        if self.differencing_do_scale_satisfied and not self.use_virtual_configs:
-            warnings.warn(
-                "differencing_do_scale_satisfied is True, but virtual_configs are disabled. Using virtual configs with"
-                " do_scale_satisfied is recommended - otherwise the differencing residual for configs at start/end will"
-                " be unbalanced."
-            )
-
-        assert not self.do_use_penalty_method
-        if self.use_differencing:
-            assert not (
-                self.differencing_do_ignore_satisfied and self.differencing_do_scale_satisfied
-            ), "use one or the other, not both"
-        if self.differencing_do_ignore_satisfied or self.differencing_do_scale_satisfied:
-            assert self.differencing_ignore_satisfied_margin_deg > 0
-            assert self.differencing_ignore_satisfied_margin_cm > 0
-        if self.use_virtual_configs:
-            assert self.virtual_configs is not None
-            assert isinstance(self.n_virtual_configs, int) and self.n_virtual_configs > 0
-        if self.use_self_collisions:
-            assert self.alpha_self_collision > 0
-        if self.use_env_collisions:
-            assert self.alpha_env_collision > 0
-        if self.pose_do_scale_down_satisfied:
-            assert isinstance(self.pose_ignore_satisfied_threshold_scale, float)
-            assert self.pose_ignore_satisfied_threshold_scale > 0
-
-
-def get_pose_only_optimization_parameters(alpha_pos: float, alpha_rot: float) -> OptimizationParameters:
-    return OptimizationParameters(
-        # General
-        seed_w_only_pose=False,
-        # Alphas
-        alpha_position=alpha_pos,
-        alpha_rotation=alpha_rot,
-        alpha_differencing=0.0,
-        alpha_virtual_configs=0.0,
-        alpha_self_collision=0.0,
-        alpha_env_collision=0.0,
-        # Pose
-        pose_do_scale_down_satisfied=False,
-        pose_ignore_satisfied_threshold_scale=None,
-        pose_ignore_satisfied_scale_down=None,
-        # Differencing
-        use_differencing=False,
-        differencing_do_ignore_satisfied=None,
-        differencing_ignore_satisfied_margin_deg=None,
-        differencing_ignore_satisfied_margin_cm=None,
-        # Virtual Configs
-        use_virtual_configs=False,
-        virtual_configs=None,
-        n_virtual_configs=None,
-        # Collisions
-        use_self_collisions=False,
-        use_env_collisions=False,
-    )
 
 
 @dataclass
