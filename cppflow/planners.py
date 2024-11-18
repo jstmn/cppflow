@@ -19,7 +19,7 @@ from cppflow.utils import (
     _plot_self_collisions,
     _plot_env_collisions,
     _get_mjacs,
-    make_text_green_or_red
+    make_text_green_or_red,
 )
 from cppflow.problem import Problem
 from cppflow.config import DEBUG_MODE_ENABLED, DEVICE
@@ -190,10 +190,9 @@ class Planner:
         assert center_latent.numel() == self._network_width, "given latent should be same dim as network width"
         shape = (k, self._network_width)
         width = self._cfg.latent_vector_scale
-        latents = torch.rand(shape, device=DEVICE) * width - (width / 2) + center_latent # [k x network_width]
+        latents = torch.rand(shape, device=DEVICE) * width - (width / 2) + center_latent  # [k x network_width]
         latents[0] = center_latent
         return torch.repeat_interleave(latents, n_timesteps, dim=0)
-
 
     def _get_k_ikflow_qpaths(
         self,
@@ -215,22 +214,23 @@ class Planner:
         return paths
 
     def _get_configuration_corresponding_latent(self, qs: torch.Tensor, ee_pose: torch.Tensor) -> torch.Tensor:
-        """ Get the latent vectors that corresponds to the given configurations
-        """
-        with torch.inference_mode(), TimerContext("running IKFlow in reverse to get latent for initial_configuration", enabled=self._cfg.verbosity > 0):
+        """Get the latent vectors that corresponds to the given configurations"""
+        with torch.inference_mode(), TimerContext(
+            "running IKFlow in reverse to get latent for initial_configuration", enabled=self._cfg.verbosity > 0
+        ):
             if self.robot.ndof != self._ikflow_solver.network_width:
-                model_input = torch.cat([qs.view(1, self.robot.ndof), torch.zeros(1, self._ikflow_solver.network_width - self.robot.ndof)], dim =1)
+                model_input = torch.cat(
+                    [qs.view(1, self.robot.ndof), torch.zeros(1, self._ikflow_solver.network_width - self.robot.ndof)],
+                    dim=1,
+                )
             else:
                 model_input = qs
             conditional = torch.cat([ee_pose.view(1, 7), SINGLE_PT_ZERO.view(1, 1)], dim=1)
             output_rev, _ = self._ikflow_solver.nn_model(model_input, c=conditional, rev=False)
             return output_rev
 
-
-
     def _run_pipeline(self, problem: Problem, **kwargs) -> Tuple[torch.Tensor, bool, TimingData]:
-        """ Runs IKFlow, collision checking, and search.
-        """
+        """Runs IKFlow, collision checking, and search."""
         existing_q_data = kwargs["rerun_data"] if "rerun_data" in kwargs else None
         if "initial_q_latent" not in kwargs:
             kwargs["initial_q_latent"] = None
@@ -241,14 +241,17 @@ class Planner:
 
         # Get latent matching 'problem.initial_configuration'
         if (problem.initial_configuration is not None) and (kwargs["initial_q_latent"] is None):
-            kwargs["initial_q_latent"] = self._get_configuration_corresponding_latent(problem.initial_configuration, problem.target_path[0])
+            kwargs["initial_q_latent"] = self._get_configuration_corresponding_latent(
+                problem.initial_configuration, problem.target_path[0]
+            )
 
         # Sample latents
         if kwargs["initial_q_latent"] is not None:
-            batched_latents = self._sample_latents_near(k, problem.n_timesteps, kwargs["initial_q_latent"]) # [ (n_timesteps * k) x network_width ]=
+            batched_latents = self._sample_latents_near(
+                k, problem.n_timesteps, kwargs["initial_q_latent"]
+            )  # [ (n_timesteps * k) x network_width ]=
         else:
-            batched_latents = self._sample_latents(k, problem.n_timesteps) # [ (n_timesteps * k) x network_width ]
-
+            batched_latents = self._sample_latents(k, problem.n_timesteps)  # [ (n_timesteps * k) x network_width ]
 
         # Run IKFlow
         ikflow_qpaths = self._get_k_ikflow_qpaths(problem.target_path, batched_latents, k)
@@ -266,8 +269,8 @@ class Planner:
 
         # Collision checking
         t0_col_check = time()
-        qs = torch.stack(ikflow_qpaths) # [ k x n_timesteps x ndof ]
-        k_current = qs.shape[0] # may be different from self._cfg.k if existing_q_data is not None
+        qs = torch.stack(ikflow_qpaths)  # [ k x n_timesteps x ndof ]
+        k_current = qs.shape[0]  # may be different from self._cfg.k if existing_q_data is not None
 
         with TimerContext("calculating self-colliding configs", enabled=self._cfg.verbosity > 0):
             self_collision_violations = qpaths_batched_self_collisions(problem, qs)
@@ -293,8 +296,6 @@ class Planner:
                 warnings.warn("FYI: SAVING FIGURE. REMOVE THIS WHEN TIMING MATTERS")
                 _plot_env_collisions(env_collision_violations)
 
-
-
         # Append previous qs to the new qs if it exists
         if existing_q_data is not None:
             qs_prev, self_collision_violations_prev, env_collision_violations_prev = existing_q_data
@@ -302,10 +303,9 @@ class Planner:
             self_collision_violations = torch.cat([self_collision_violations_prev, self_collision_violations], dim=0)
             env_collision_violations = torch.cat([env_collision_violations_prev, env_collision_violations], dim=0)
 
-
         # qs is [ k x n_timesteps x ndof ]
         if problem.initial_configuration is not None:
-            k_current = qs.shape[0] # may be different from self._cfg.k if existing_q_data is not None
+            k_current = qs.shape[0]  # may be different from self._cfg.k if existing_q_data is not None
             q0 = problem.initial_configuration.expand((k_current, 1, self.robot.ndof))
             qs = torch.cat([q0, qs], dim=1)
             zeros = SINGLE_PT_ZERO.expand((k_current, 1))
@@ -324,12 +324,12 @@ class Planner:
 
         # Remove initial configuration if it was added
         if problem.initial_configuration is not None:
-            qpath_search = qpath_search[1:, :] # remove initial configuration
+            qpath_search = qpath_search[1:, :]  # remove initial configuration
             qs = qs[:, 1:, :]
             self_collision_violations = self_collision_violations[:, 1:]
             env_collision_violations = env_collision_violations[:, 1:]
 
-        # Creating q_data needs to come after dp_search, so that in the case that there is an initial configuration 
+        # Creating q_data needs to come after dp_search, so that in the case that there is an initial configuration
         # provided, it (the initial configuration) is removed from qs.
         q_data = (qs, self_collision_violations, env_collision_violations)
         time_dp_search = time() - t0_dp_search
@@ -346,7 +346,6 @@ class Planner:
             debug_info,
             q_data,
         )
-
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -428,7 +427,8 @@ class CppFlowPlanner(Planner):
             mjac_deg, mjac_cm = _get_mjacs(problem.robot, search_qpath)
             if mjac_deg > self._cfg.rerun_mjac_threshold_deg or mjac_cm > self._cfg.rerun_mjac_threshold_cm:
                 print_v1(
-                    f"{ make_text_green_or_red('Rerunning', False)} dp_search with larger k b/c mjac is too high: {mjac_deg} deg, {mjac_cm} cm",
+                    f"{ make_text_green_or_red('Rerunning', False)} dp_search with larger k b/c mjac is too high:"
+                    f" {mjac_deg} deg, {mjac_cm} cm",
                     verbosity=self._cfg.verbosity,
                 )
                 kwargs["rerun_data"] = q_data
@@ -472,7 +472,6 @@ class CppFlowPlanner(Planner):
             td.optimizer = time() - t0_opt
             debug_info["n_optimization_steps"] = optimization_result.n_steps_taken
 
-
         # update convergence result
         if "results_df" in kwargs:
             write_qpath_to_results_df(kwargs["results_df"], optimization_result.x_opt, problem)
@@ -486,6 +485,5 @@ class CppFlowPlanner(Planner):
             print_v1(f"\nRerunning dp_search because optimization failed", verbosity=self._cfg.verbosity)
             kwargs["rerun_data"] = q_data
             return self.generate_plan(problem, **kwargs)
-
 
         return return_(optimization_result.x_opt.detach())

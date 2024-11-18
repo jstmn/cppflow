@@ -199,8 +199,13 @@ def eval_planner_on_problems(planner_name: str, planner_settings: PlannerSetting
 
 def get_initial_configuration(problem: Problem):
     for _ in range(25):
-        initial_configuration = to_torch(problem.robot.inverse_kinematics_klampt(problem.target_path[0].cpu().numpy())).view(1, 1, problem.robot.ndof)
-        if not (qpaths_batched_env_collisions(problem, initial_configuration) or qpaths_batched_self_collisions(problem, initial_configuration)):
+        initial_configuration = to_torch(
+            problem.robot.inverse_kinematics_klampt(problem.target_path[0].cpu().numpy())
+        ).view(1, 1, problem.robot.ndof)
+        if not (
+            qpaths_batched_env_collisions(problem, initial_configuration)
+            or qpaths_batched_self_collisions(problem, initial_configuration)
+        ):
             print(f"Initial configuration {initial_configuration} is collision free")
             return initial_configuration.view(1, problem.robot.ndof)
     raise RuntimeError("Could not find collision free initial configuration")
@@ -278,7 +283,11 @@ def main(args):
             anytime_mode_enabled=False,
         ),
     }
-    planner_settings = planner_settings_dict[args.planner_name] if not args.use_fixed_initial_configuration else planner_settings_dict[args.planner_name + "_fixed_q0"]
+    planner_settings = (
+        planner_settings_dict[args.planner_name]
+        if not args.use_fixed_initial_configuration
+        else planner_settings_dict[args.planner_name + "_fixed_q0"]
+    )
 
     if args.problem is not None:
         problem = problem_from_filename(args.problem)
@@ -286,7 +295,6 @@ def main(args):
 
         if args.use_fixed_initial_configuration:
             problem.initial_configuration = get_initial_configuration()
-
 
         if args.plan_filepath is not None:
             plan = torch.load(args.plan_filepath)

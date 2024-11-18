@@ -175,6 +175,7 @@ def run_lm_alternating_loss(
         return angular_changes(qpath_rev).abs().sum().item()
 
     printout_enabled = verbosity > 1
+
     def printc(*args, **_kwargs):
         if printout_enabled:
             print(*args, **_kwargs)
@@ -334,11 +335,7 @@ def run_lm_alternating_loss(
                 printc(make_text_green_or_red(f"  tmax_sec={tmax_sec} reached, but no valid trajectory found", False))
             break
         elif i > max_n_steps and last_valid is None:
-            printc(
-                make_text_green_or_red(
-                    f"  no valid solution found after {max_n_steps} steps, breaking", False
-                )
-            )
+            printc(make_text_green_or_red(f"  no valid solution found after {max_n_steps} steps, breaking", False))
             break
 
         i += 1
