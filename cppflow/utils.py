@@ -25,7 +25,6 @@ def print_v2(s, verbosity=0, *args, **kwargs):
     """Prints if verbsotity is 2 or greater"""
     if verbosity >= 2:
         print(s, *args, **kwargs)
-        print(s)
 
 
 def print_v3(s, verbosity=0, *args, **kwargs):

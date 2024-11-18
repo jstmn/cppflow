@@ -313,7 +313,7 @@ def run_lm_alternating_loss(
             x_sol,
             _,
             (pose_pos_valid, pose_rot_valid, mjac_rev_valid, mjac_pris_valid, is_a_self_collision, is_a_env_collision),
-        ) = x_is_valid(opt_problem.problem, opt_problem.target_path, opt_state.x, 1)
+        ) = x_is_valid(opt_problem.problem, opt_problem.target_path, opt_state.x, parallel_count=1, verbosity=verbosity)
         if x_sol is not None:
             last_valid_idx = i
             last_valid = opt_state.x.clone()

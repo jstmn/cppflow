@@ -15,6 +15,7 @@ from cppflow.problem import problem_from_filename, get_all_problems, Problem
 from cppflow.utils import set_seed, to_torch
 from cppflow.config import DEVICE, SELF_COLLISIONS_IGNORED, ENV_COLLISIONS_IGNORED, DEBUG_MODE_ENABLED
 from cppflow.visualization import visualize_plan, plot_plan
+from cppflow.collision_detection import qpaths_batched_self_collisions, qpaths_batched_env_collisions
 
 torch.set_printoptions(linewidth=120)
 set_seed()
@@ -196,6 +197,15 @@ def eval_planner_on_problems(planner_name: str, planner_settings: PlannerSetting
     print(df)
 
 
+def get_initial_configuration(problem: Problem):
+    for _ in range(25):
+        initial_configuration = to_torch(problem.robot.inverse_kinematics_klampt(problem.target_path[0].cpu().numpy())).view(1, 1, problem.robot.ndof)
+        if not (qpaths_batched_env_collisions(problem, initial_configuration) or qpaths_batched_self_collisions(problem, initial_configuration)):
+            print(f"Initial configuration {initial_configuration} is collision free")
+            return initial_configuration.view(1, problem.robot.ndof)
+    raise RuntimeError("Could not find collision free initial configuration")
+
+
 """
 
 Problems:
@@ -236,6 +246,8 @@ python scripts/evaluate.py --planner CppFlowAnytime --problem=panda__flappy_bird
 
 python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch_arm__hello_mini --visualize --use_fixed_initial_configuration
 python scripts/evaluate.py --planner CppFlowAnytime --problem=panda__1cube_mini --plot --use_fixed_initial_configuration
+
+python scripts/evaluate.py --planner CppFlowAnytime --problem=panda__1cube_mini --plan_filepath=many_env_collisions[0].pt
 """
 
 
@@ -250,21 +262,30 @@ def main(args):
             do_rerun_if_optimization_fails=False,
             do_return_search_path_mjac=False,
         ),
+        "CppFlowAnytime_fixed_q0": PlannerSettings(
+            verbosity=2,
+            k=175,
+            tmax_sec=3.0,
+            anytime_mode_enabled=False,
+            latent_vector_scale=0.5,
+            do_rerun_if_large_dp_search_mjac=False,
+            do_rerun_if_optimization_fails=False,
+            do_return_search_path_mjac=False,
+        ),
         "PlannerSearcher": PlannerSettings(
             k=175,
             tmax_sec=5.0,
             anytime_mode_enabled=False,
         ),
     }
-    planner_settings = planner_settings_dict[args.planner_name]
+    planner_settings = planner_settings_dict[args.planner_name] if not args.use_fixed_initial_configuration else planner_settings_dict[args.planner_name + "_fixed_q0"]
 
     if args.problem is not None:
         problem = problem_from_filename(args.problem)
         print(problem)
 
         if args.use_fixed_initial_configuration:
-            initial_configuration = problem.robot.inverse_kinematics_klampt(problem.target_path[0].cpu().numpy())
-            problem.initial_configuration = to_torch(initial_configuration).view(1, problem.robot.ndof)
+            problem.initial_configuration = get_initial_configuration()
 
 
         if args.plan_filepath is not None:
@@ -279,6 +300,8 @@ def main(args):
             # df = pd.DataFrame(planner_result.plan.q_path.cpu().numpy())
             # df.to_csv(f"pt_tensors/plan__{problem.full_name}__{planner.name}.csv", index=False)
 
+            print()
+            print("   ======   Planner result   ======")
             print()
             print(planner_result.plan)
             print()

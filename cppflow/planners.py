@@ -155,7 +155,7 @@ class Planner:
         raise NotImplementedError()
 
     # Private methods
-    def _get_fixed_random_latent(self, k: int, n_timesteps: int) -> torch.Tensor:
+    def _sample_latents(self, k: int, n_timesteps: int) -> torch.Tensor:
         """Returns the latent vector for the IKFlow call.
 
         Notes:
@@ -173,6 +173,25 @@ class Planner:
         elif self._cfg.latent_distribution == "uniform":
             width = self._cfg.latent_vector_scale
             latents = torch.rand(shape, device=DEVICE) * width - (width / 2)
+        return torch.repeat_interleave(latents, n_timesteps, dim=0)
+
+    def _sample_latents_near(self, k: int, n_timesteps: int, center_latent: torch.Tensor) -> torch.Tensor:
+        """Returns the latent vector for the IKFlow call.
+
+        Notes:
+            1. For 'uniform', latent_vector_scale is the width of the sampling area for each dimension. The value 2.0
+                is recommended. This was found in a hyperparameter search in the 'search_scatchpad.ipynb' notebook on
+                March 13.
+
+        Args:
+            k: Number of paths
+            n_timesteps: Number of waypoints in the target pose path
+        """
+        assert center_latent.numel() == self._network_width, "given latent should be same dim as network width"
+        shape = (k, self._network_width)
+        width = self._cfg.latent_vector_scale
+        latents = torch.rand(shape, device=DEVICE) * width - (width / 2) + center_latent # [k x network_width]
+        latents[0] = center_latent
         return torch.repeat_interleave(latents, n_timesteps, dim=0)
 
 
@@ -195,8 +214,9 @@ class Planner:
         paths = [ikf_sols[i * n : (i * n) + n, :] for i in range(k)]
         return paths
 
-    def _get_ikflow_latent(self, qs: torch.Tensor, ee_pose: torch.Tensor) -> torch.Tensor:
-
+    def _get_configuration_corresponding_latent(self, qs: torch.Tensor, ee_pose: torch.Tensor) -> torch.Tensor:
+        """ Get the latent vectors that corresponds to the given configurations
+        """
         with torch.inference_mode(), TimerContext("running IKFlow in reverse to get latent for initial_configuration", enabled=self._cfg.verbosity > 0):
             if self.robot.ndof != self._ikflow_solver.network_width:
                 model_input = torch.cat([qs.view(1, self.robot.ndof), torch.zeros(1, self._ikflow_solver.network_width - self.robot.ndof)], dim =1)
@@ -207,26 +227,34 @@ class Planner:
             return output_rev
 
 
+
     def _run_pipeline(self, problem: Problem, **kwargs) -> Tuple[torch.Tensor, bool, TimingData]:
         """ Runs IKFlow, collision checking, and search.
         """
         existing_q_data = kwargs["rerun_data"] if "rerun_data" in kwargs else None
+        if "initial_q_latent" not in kwargs:
+            kwargs["initial_q_latent"] = None
 
         # ikflow
         t0_ikflow = time()
         k = self._cfg.k if (existing_q_data is None) else DEFAULT_RERUN_NEW_K
-        batched_latents = self._get_fixed_random_latent(k, problem.n_timesteps) # [ (n_timesteps * k) x network_width ]
+
+        # Get latent matching 'problem.initial_configuration'
+        if (problem.initial_configuration is not None) and (kwargs["initial_q_latent"] is None):
+            kwargs["initial_q_latent"] = self._get_configuration_corresponding_latent(problem.initial_configuration, problem.target_path[0])
+
+        # Sample latents
+        if kwargs["initial_q_latent"] is not None:
+            batched_latents = self._sample_latents_near(k, problem.n_timesteps, kwargs["initial_q_latent"]) # [ (n_timesteps * k) x network_width ]=
+        else:
+            batched_latents = self._sample_latents(k, problem.n_timesteps) # [ (n_timesteps * k) x network_width ]
 
 
-        TODO: Need to concentrate latents near the initial configuration to improve search results
-        if (problem.initial_configuration is not None) and (existing_q_data is None):
-            initial_q_latent = self._get_ikflow_latent(problem.initial_configuration, problem.target_path[0])
-            batched_latents[0:problem.n_timesteps, :] = initial_q_latent.expand(problem.n_timesteps, self._network_width)
-
+        # Run IKFlow
         ikflow_qpaths = self._get_k_ikflow_qpaths(problem.target_path, batched_latents, k)
         time_ikflow = time() - t0_ikflow
 
-        # save initial solution
+        # Optionally save initial solution
         if self._cfg.return_only_1st_plan:
             return (
                 ikflow_qpaths[0],
@@ -238,12 +266,17 @@ class Planner:
 
         # Collision checking
         t0_col_check = time()
-        qs = torch.stack(ikflow_qpaths)
+        qs = torch.stack(ikflow_qpaths) # [ k x n_timesteps x ndof ]
         k_current = qs.shape[0] # may be different from self._cfg.k if existing_q_data is not None
 
         with TimerContext("calculating self-colliding configs", enabled=self._cfg.verbosity > 0):
             self_collision_violations = qpaths_batched_self_collisions(problem, qs)
             pct_colliding = (torch.sum(self_collision_violations) / (k_current * problem.n_timesteps)).item() * 100
+
+            torch.save(plan_from_qpath(qs[0, :, :], problem), f"many_env_collisions[1].pt")
+            torch.save(plan_from_qpath(qs[1, :, :], problem), f"many_env_collisions[0].pt")
+            torch.save(plan_from_qpath(qs[2, :, :], problem), f"many_env_collisions[2].pt")
+
             assert pct_colliding < 95.0, f"too many env collisions: {pct_colliding} %"
             print_v2(f"  self_collision violations: {pct_colliding} %")
 
@@ -315,6 +348,13 @@ class Planner:
         )
 
 
+
+# ----------------------------------------------------------------------------------------------------------------------
+# ---
+# --- Planners
+# ---
+
+
 class PlannerSearcher(Planner):
     """PlannerSearcher creates a finds a solution by performing a search through a graph constructed by connecting k
     ikflow generated cspace plans
@@ -322,11 +362,11 @@ class PlannerSearcher(Planner):
 
     def __init__(self, settings: PlannerSettings, robot: Robot):
         super().__init__(settings, robot)
+        assert self._cfg.run_dp_search
 
     def generate_plan(self, problem: Problem, **kwargs) -> PlannerResult:
         """Runs dp_search and returns"""
         assert problem.robot.name == self.robot.name
-        kwargs["run_dp_search"] = True
 
         t0 = time()
         qpath_search, _, td, debug_info, _ = self._run_pipeline(problem, **kwargs)
@@ -351,12 +391,6 @@ class PlannerSearcher(Planner):
             [],
             debug_info,
         )
-
-
-# ----------------------------------------------------------------------------------------------------------------------
-# ---
-# --- Optimizers
-# ---
 
 
 class CppFlowPlanner(Planner):
@@ -402,8 +436,9 @@ class CppFlowPlanner(Planner):
                 mjac_deg, mjac_cm = _get_mjacs(problem.robot, search_qpath)
                 print_v1(f"new mjac after dp_search with larger k: {mjac_deg} deg,  cm", verbosity=self._cfg.verbosity)
 
-        print_v3("\ndp_search path:", verbosity=self._cfg.verbosity)
-        print_v3(str(plan_from_qpath(search_qpath, problem)), verbosity=self._cfg.verbosity)
+        print_v2("\ndp_search path:", verbosity=self._cfg.verbosity)
+        print_v2(str(plan_from_qpath(search_qpath, problem)), verbosity=self._cfg.verbosity)
+        # print_v2(str(plan_from_qpath(search_qpath, problem)), verbosity=self._cfg.verbosity)
 
         # return if not anytime mode and search path is valid, or out of time
         if ((not self._cfg.anytime_mode_enabled) and is_valid) or time_is_exceeded():
