@@ -15,6 +15,7 @@ from cppflow.problem import Problem
 from cppflow.ros2.ros2_utils import waypoints_to_se3_sequence, plan_to_ros_trajectory
 from cppflow.planners import PlannerSearcher, CppFlowPlanner, Planner, PlannerSettings
 from cppflow.utils import set_seed
+from cppflow.collision_detection import qpaths_batched_self_collisions, qpaths_batched_env_collisions
 
 set_seed()
 
@@ -154,12 +155,19 @@ class SubscriberNode(Node):
 
         # TODO: Add obstacles
         q0 = to_torch(request.initial_configuration.position) if request.initial_configuration_is_set else None
+
+        # Check if initial configuration is valid
+        if qpaths_batched_env_collisions(problem, q0.view(1, 1, self.planner.robot.ndof)).item():
+            return specify_malformed_query("Initial configuration is in collision with environment")
+        if qpaths_batched_self_collisions(problem, q0.view(1, 1, self.planner.robot.ndof)).item():
+            return specify_malformed_query("Initial configuration is self-colliding")
+
         problem = Problem(
             target_path=waypoints_to_se3_sequence(request_problem.waypoints),
             initial_configuration=q0,
             robot=self.robot,
-            name="QUERIED-PROBLEM",
-            full_name="QUERIED-PROBLEM-full_name",
+            name="ros2-queried-problem",
+            full_name="ros2-queried-problem",
             obstacles=[],
             obstacles_Tcuboids=[],
             obstacles_cuboids=[],
@@ -187,6 +195,12 @@ class SubscriberNode(Node):
         self.get_logger().info("Planning complete - returning {} trajectories".format(len(response.trajectories)))
         return response
 
+
+
+""" Usage
+
+ros2 run cppflow ros2_subscriber
+"""
 
 if __name__ == "__main__":
     rclpy.init()

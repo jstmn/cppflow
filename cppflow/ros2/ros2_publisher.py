@@ -110,6 +110,12 @@ class CppFlowQueryClient(Node):
             self.get_logger().error(f"Service call failed: {str(e)}")
 
 
+""" Usage
+
+ros2 run cppflow ros2_publisher
+"""
+
+
 def main(args=None):
     rclpy.init(args=args)
     client = CppFlowQueryClient()
