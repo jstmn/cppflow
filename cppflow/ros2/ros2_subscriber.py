@@ -37,7 +37,7 @@ PLANNERS = {
 }
 
 
-PLANNER_HPARAMS = {
+PLANNER_SETTINGS = {
     "CppFlowPlanner": PlannerSettings(
         k=175,
         tmax_sec=5.0,
@@ -107,7 +107,9 @@ class SubscriberNode(Node):
             return response
 
         self.obstacles = request.obstacles
-        self.planner = PLANNERS[PLANNER](self.robot)
+        # TODO: redesign API, so that planner settings are configured here instead of being hardcoded. Note that the 
+        # correct settings are configured with set_settings() below
+        self.planner = PLANNERS[PLANNER](PLANNER_SETTINGS["CppFlowPlanner"], self.robot)
         response.success = True
         self.get_logger().info(f"Returning response: {response}")
         return response
@@ -146,7 +148,7 @@ class SubscriberNode(Node):
                 f"At least 3 waypoints are required per problem (only {len(request_problem.waypoints)} provided)"
             )
 
-        settings = PLANNER_HPARAMS[PLANNER]
+        settings = PLANNER_SETTINGS[PLANNER]
         if settings.anytime_mode_enabled:
             return specify_malformed_query("Anytime mode not supported by the ros2 interface")
         settings.tmax_sec = request.max_planning_time_sec
@@ -155,12 +157,6 @@ class SubscriberNode(Node):
 
         # TODO: Add obstacles
         q0 = to_torch(request.initial_configuration.position) if request.initial_configuration_is_set else None
-
-        # Check if initial configuration is valid
-        if qpaths_batched_env_collisions(problem, q0.view(1, 1, self.planner.robot.ndof)).item():
-            return specify_malformed_query("Initial configuration is in collision with environment")
-        if qpaths_batched_self_collisions(problem, q0.view(1, 1, self.planner.robot.ndof)).item():
-            return specify_malformed_query("Initial configuration is self-colliding")
 
         problem = Problem(
             target_path=waypoints_to_se3_sequence(request_problem.waypoints),
@@ -173,6 +169,13 @@ class SubscriberNode(Node):
             obstacles_cuboids=[],
             obstacles_klampt=[],
         )
+        # Check if initial configuration is valid
+        if q0 is not None:
+            if qpaths_batched_env_collisions(problem, q0.view(1, 1, self.planner.robot.ndof)).item():
+                return specify_malformed_query("Initial configuration is in collision with environment")
+            if qpaths_batched_self_collisions(problem, q0.view(1, 1, self.planner.robot.ndof)).item():
+                return specify_malformed_query("Initial configuration is self-colliding")
+
         try:
             plan = self.planner.generate_plan(problem).plan
         except (RuntimeError, AttributeError) as e:
@@ -202,7 +205,7 @@ class SubscriberNode(Node):
 ros2 run cppflow ros2_subscriber
 """
 
-if __name__ == "__main__":
+def main(args=None):
     rclpy.init()
     node = SubscriberNode()
     try:
@@ -212,3 +215,7 @@ if __name__ == "__main__":
     finally:
         node.destroy_node()
         rclpy.shutdown()
+
+
+if __name__ == "__main__":
+    main()

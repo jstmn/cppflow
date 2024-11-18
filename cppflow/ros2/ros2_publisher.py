@@ -24,8 +24,8 @@ class CppFlowQueryClient(Node):
             self.get_logger().info("Waiting for service /cppflow_environment_configuration to be available...")
 
         self.send_scene_configuration_request()
-        # self.send_planning_request()
-        self.send_cached_problem_planning_request()
+        self.send_dummy_problem_planning_request()
+        # self.send_cached_problem_planning_request()
 
     def send_scene_configuration_request(self):
 
@@ -45,7 +45,7 @@ class CppFlowQueryClient(Node):
             self.get_logger().error(f"Service call failed: {str(e)}")
 
     def send_cached_problem_planning_request(self):
-
+        raise NotImplementedError(".bin files need to be updated")
         # Load CppFlowQuery_request.bin
         with resources.open_binary("cppflow.ros2.resources", "CppFlowQuery_request.bin") as f:
             request = deserialize_message(f.read(), CppFlowQuery.Request)
@@ -87,7 +87,6 @@ class CppFlowQueryClient(Node):
                 orientation=Quaternion(x=qxyz[1], y=qxyz[2], z=qxyz[3], w=qxyz[0]),
             )
             problem.waypoints.append(waypoint)
-        problem.initial_configuration_is_set = False
         request.problems = [problem]
 
         # Send request
