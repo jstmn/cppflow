@@ -75,6 +75,7 @@ class CppFlowQueryClient(Node):
         # Load CppFlowQuery_request.bin
         with resources.open_binary("cppflow.ros2.resources", "CppFlowQuery_request.bin") as f:
             request = deserialize_message(f.read(), CppFlowQuery.Request)
+            request.verbosity = 2
         self.get_logger().info(f"Loaded cached problem request 'CppFlowQuery_request.bin'")
         self._send_planning_request(request)
 
@@ -89,6 +90,8 @@ class CppFlowQueryClient(Node):
         request.base_frame = "panda_link0"
         request.end_effector_frame = "panda_hand"
         request.jrl_robot_name = "panda"
+        request.verbosity = 1
+        request.max_planning_time_sec = 3.0
 
         # Create an example CppFlowProblem with waypoints
         # This is the beginning of the panda__1cube problem
@@ -150,6 +153,9 @@ class CppFlowQueryClient(Node):
 """ Usage
 ros2 run cppflow ros2_subscriber    # terminal 1
 ros2 run cppflow ros2_publisher     # terminal 2
+
+#
+cp /tmp/CppFlow*.bin cppflow/ros2/resources/
 """
 
 

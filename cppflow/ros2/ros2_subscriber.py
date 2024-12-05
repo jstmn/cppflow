@@ -54,7 +54,7 @@ PLANNER = "CppFlowPlanner"
 class SubscriberNode(Node):
     def __init__(self):
         super().__init__("cppflow_query_server")
-        self.srv = self.create_service(CppFlowQuery, "/cppflow_planning_query", self.query_callback)
+        self.srv = self.create_service(CppFlowQuery, "/cppflow_planning_query", self.planning_query_callback)
         self.environment_setup_srv = self.create_service(
             CppFlowEnvironmentConfig, "/cppflow_environment_configuration", self.environment_setup_callback
         )
@@ -114,7 +114,7 @@ class SubscriberNode(Node):
         self.get_logger().info(f"Returning response: {response} ({time() - t0:.3f} seconds)")
         return response
 
-    def query_callback(self, request, response):
+    def planning_query_callback(self, request, response):
         t0 = time()
         self.get_logger().info(f"Received a CppFlowQuery message")
         ndof = self.planner.robot.ndof
@@ -122,7 +122,7 @@ class SubscriberNode(Node):
         def specify_malformed_query(msg: str):
             response.is_malformed_query = True
             response.malformed_query_error = msg
-            self.get_logger().info(f"Returning response: {response}")
+            self.get_logger().info(f"Returning malformed query response: {response}")
             return response
 
         if SAVE_MESSAGES:
@@ -133,6 +133,9 @@ class SubscriberNode(Node):
 
         if len(request.problems) == 0:
             return specify_malformed_query("No problems provided")
+
+        if request.max_planning_time_sec < 1e-6:
+            return specify_malformed_query(f"Planning time is too short (`max_planning_time_sec`: {request.max_planning_time_sec})")
 
         if len(request.problems) > 1:
             return specify_malformed_query("Only 1 planning problem allowed per query currently")
@@ -201,7 +204,7 @@ class SubscriberNode(Node):
         response.success = [plan.is_valid]
         response.errors = [""]
         self.get_logger().info(
-            f"Planning complete - returning {len(response.trajectories)} trajectories ({time() - t0:.3f} seconds)"
+            f"Planning complete - returning {sum(response.success)} / {len(response.trajectories)} successful trajectories ({time() - t0:.3f} seconds)"
         )
         return response
 

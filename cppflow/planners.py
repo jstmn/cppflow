@@ -435,7 +435,11 @@ class CppFlowPlanner(Planner):
         print_v2(str(plan_from_qpath(search_qpath, problem)), verbosity=self._cfg.verbosity)
 
         # return if not anytime mode and search path is valid, or out of time
-        if ((not self._cfg.anytime_mode_enabled) and is_valid) or time_is_exceeded():
+        if time_is_exceeded():
+            print_v2(f"Time limit exceeded after dp_search ({time() - t0:.3f} > {self._cfg.tmax_sec}), returning", verbosity=self._cfg.verbosity)
+            return return_(search_qpath)
+        if ((not self._cfg.anytime_mode_enabled) and is_valid):
+            print_v2("dp_search path is valid and anytime mode is disabled, returning", verbosity=self._cfg.verbosity)
             return return_(search_qpath)
 
         # Run optimization
