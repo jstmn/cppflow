@@ -301,11 +301,14 @@ class Planner:
         # qs is [ k x n_timesteps x ndof ]
         if problem.initial_configuration is not None:
             k_current = qs.shape[0]  # may be different from self._cfg.k if existing_q_data is not None
-            q0 = problem.initial_configuration.expand((k_current, 1, self.robot.ndof))
-            qs = torch.cat([q0, qs], dim=1)
-            zeros = SINGLE_PT_ZERO.expand((k_current, 1))
-            self_collision_violations = torch.cat([zeros, self_collision_violations], dim=1)
-            env_collision_violations = torch.cat([zeros, env_collision_violations], dim=1)
+            # q0 = problem.initial_configuration.expand((k_current, 1, self.robot.ndof))
+            # qs = torch.cat([q0, qs], dim=1)
+            # zeros = SINGLE_PT_ZERO.expand((k_current, 1))
+            # self_collision_violations = torch.cat([zeros, self_collision_violations], dim=1)
+            # env_collision_violations = torch.cat([zeros, env_collision_violations], dim=1)
+            qs[:, 0, :] = problem.initial_configuration
+            self_collision_violations[:, 0] = 0.0               # initial_configuration is assumed to be collision-free
+            env_collision_violations[:, 0] = 0.0                # initial_configuration is assumed to be collision-free
 
         time_coll_check = time() - t0_col_check
         debug_info = {}
@@ -318,11 +321,11 @@ class Planner:
             qpath_search = dp_search(self.robot, qs, self_collision_violations, env_collision_violations).to(DEVICE)
 
         # Remove initial configuration if it was added
-        if problem.initial_configuration is not None:
-            qpath_search = qpath_search[1:, :]  # remove initial configuration
-            qs = qs[:, 1:, :]
-            self_collision_violations = self_collision_violations[:, 1:]
-            env_collision_violations = env_collision_violations[:, 1:]
+        # if problem.initial_configuration is not None:
+        #     qpath_search = qpath_search[1:, :]  # remove initial configuration
+        #     qs = qs[:, 1:, :]
+        #     self_collision_violations = self_collision_violations[:, 1:]
+        #     env_collision_violations = env_collision_violations[:, 1:]
 
         # Creating q_data needs to come after dp_search, so that in the case that there is an initial configuration
         # provided, it (the initial configuration) is removed from qs.
@@ -442,7 +445,11 @@ class CppFlowPlanner(Planner):
             print_v2("dp_search path is valid and anytime mode is disabled, returning", verbosity=self._cfg.verbosity)
             return return_(search_qpath)
 
+        assert search_qpath.shape[0] == problem.target_path.shape[0]
+
         # Run optimization
+        # TODO(@jstmn): Handle the `initial_configuration` during optimization. This should be a fixed value that
+        # impacts the gradient of the trajectory.
         with TimerContext(f"running run_lm_optimization()", enabled=self._cfg.verbosity > 0):
             t0_opt = time()
             if self._cfg.anytime_mode_enabled:
@@ -455,6 +462,7 @@ class CppFlowPlanner(Planner):
                     convergence_threshold=OPTIMIZATION_CONVERGENCE_THRESHOLD,
                     results_df=results_df,
                     verbosity=self._cfg.verbosity,
+                    initial_configuration=problem.initial_configuration,
                 )
             else:
                 optimization_result = run_lm_optimization(

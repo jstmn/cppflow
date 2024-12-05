@@ -15,7 +15,7 @@ from jrl.robots import Panda
 
 
 def _get_initial_configuration(robot: Robot, target_pose: Pose):
-    warnings.warn("No collision checking is performed against obstacles in the scene")
+    warnings.warn("No collision checking is performed against obstacles in the scene to find an initial configuration.")
     for _ in range(25):
         target_pose_np = np.array(
             [
@@ -30,7 +30,6 @@ def _get_initial_configuration(robot: Robot, target_pose: Pose):
         )
         initial_configuration = robot.inverse_kinematics_klampt(target_pose_np)[0]
         if not robot.config_self_collides(initial_configuration):
-            print(f"Initial configuration {initial_configuration} is not self colliding free")
             return initial_configuration
     raise RuntimeError("Could not find collision free initial configuration")
 
@@ -51,8 +50,8 @@ class CppFlowQueryClient(Node):
 
         self.panda: Optional[Panda] = None
         self.send_scene_configuration_request()
-        # self.send_dummy_problem_planning_request()
-        self.send_cached_problem_planning_request()
+        self.send_dummy_problem_planning_request()
+        # self.send_cached_problem_planning_request()
 
     def send_scene_configuration_request(self):
 
@@ -129,6 +128,7 @@ class CppFlowQueryClient(Node):
         request.initial_configuration = JointState(
             position=_get_initial_configuration(self.panda, request.problems[0].waypoints[0])
         )
+        print("request.initial_configuration:", request.initial_configuration.position)
 
         # Send request
         self._send_planning_request(request)
@@ -144,8 +144,10 @@ class CppFlowQueryClient(Node):
             ):
                 self.get_logger().info(f"Problem {i}: Success = {success}, Error = {error}")
                 self.get_logger().info(
-                    f"Trajectory {i}: {trajectory.header}, {trajectory.joint_names}, {len(trajectory.points)} points"
+                    f"Trajectory {i}: {trajectory.joint_names}, {len(trajectory.points)} points"
                 )
+                for j, point in enumerate(trajectory.points):
+                    self.get_logger().info(f"  {j}: {point.positions}")
         except Exception as e:
             self.get_logger().error(f"Service call failed: {str(e)}")
 
