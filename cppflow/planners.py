@@ -249,7 +249,7 @@ class Planner:
         if kwargs["initial_q_latent"] is not None:
             batched_latents = self._sample_latents_near(
                 k, problem.n_timesteps, kwargs["initial_q_latent"]
-            )  # [ (n_timesteps * k) x network_width ]=
+            )  # [ (n_timesteps * k) x network_width ]
         else:
             batched_latents = self._sample_latents(k, problem.n_timesteps)  # [ (n_timesteps * k) x network_width ]
 
@@ -275,11 +275,6 @@ class Planner:
         with TimerContext("calculating self-colliding configs", enabled=self._cfg.verbosity > 0):
             self_collision_violations = qpaths_batched_self_collisions(problem, qs)
             pct_colliding = (torch.sum(self_collision_violations) / (k_current * problem.n_timesteps)).item() * 100
-
-            torch.save(plan_from_qpath(qs[0, :, :], problem), f"many_env_collisions[1].pt")
-            torch.save(plan_from_qpath(qs[1, :, :], problem), f"many_env_collisions[0].pt")
-            torch.save(plan_from_qpath(qs[2, :, :], problem), f"many_env_collisions[2].pt")
-
             assert pct_colliding < 95.0, f"too many env collisions: {pct_colliding} %"
             print_v2(f"  self_collision violations: {pct_colliding} %")
 
@@ -438,7 +433,6 @@ class CppFlowPlanner(Planner):
 
         print_v2("\ndp_search path:", verbosity=self._cfg.verbosity)
         print_v2(str(plan_from_qpath(search_qpath, problem)), verbosity=self._cfg.verbosity)
-        # print_v2(str(plan_from_qpath(search_qpath, problem)), verbosity=self._cfg.verbosity)
 
         # return if not anytime mode and search path is valid, or out of time
         if ((not self._cfg.anytime_mode_enabled) and is_valid) or time_is_exceeded():
