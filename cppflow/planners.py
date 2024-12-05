@@ -215,17 +215,21 @@ class Planner:
 
     def _get_configuration_corresponding_latent(self, qs: torch.Tensor, ee_pose: torch.Tensor) -> torch.Tensor:
         """Get the latent vectors that corresponds to the given configurations"""
-        with torch.inference_mode(), TimerContext(
-            "running IKFlow in reverse to get latent for initial_configuration", enabled=self._cfg.verbosity > 0
-        ):
+        with torch.inference_mode():
+        # with torch.inference_mode(), TimerContext(
+        #     "running IKFlow in reverse to get latent for initial_configuration", enabled=self._cfg.verbosity > 0
+        # ):
             if self.robot.ndof != self._ikflow_solver.network_width:
                 model_input = torch.cat(
                     [qs.view(1, self.robot.ndof), torch.zeros(1, self._ikflow_solver.network_width - self.robot.ndof)],
                     dim=1,
                 )
+                print("(if)   model_input", model_input.shape)
             else:
                 model_input = qs
+                print("(else) model_input", model_input.shape)
             conditional = torch.cat([ee_pose.view(1, 7), SINGLE_PT_ZERO.view(1, 1)], dim=1)
+            print("      conditional", conditional.shape)
             output_rev, _ = self._ikflow_solver.nn_model(model_input, c=conditional, rev=False)
             return output_rev
 

@@ -45,7 +45,6 @@ class CppFlowQueryClient(Node):
             self.get_logger().error(f"Service call failed: {str(e)}")
 
     def send_cached_problem_planning_request(self):
-        raise NotImplementedError(".bin files need to be updated")
         # Load CppFlowQuery_request.bin
         with resources.open_binary("cppflow.ros2.resources", "CppFlowQuery_request.bin") as f:
             request = deserialize_message(f.read(), CppFlowQuery.Request)
@@ -59,6 +58,8 @@ class CppFlowQueryClient(Node):
         request.base_frame = "panda_link0"
         request.end_effector_frame = "panda_hand"
         request.jrl_robot_name = "panda"
+
+        TODO: add initial joint angle
 
         # Create an example CppFlowProblem with waypoints
         # This is the beginning of the panda__1cube problem
@@ -110,8 +111,8 @@ class CppFlowQueryClient(Node):
 
 
 """ Usage
-
-ros2 run cppflow ros2_publisher
+ros2 run cppflow ros2_subscriber    # terminal 1
+ros2 run cppflow ros2_publisher     # terminal 2
 """
 
 

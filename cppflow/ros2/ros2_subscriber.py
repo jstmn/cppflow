@@ -73,6 +73,12 @@ class SubscriberNode(Node):
                 file.write(serialize_message(request))
             self.get_logger().info(f"Saved CppFlowEnvironmentConfig request to '{save_filepath}'")
 
+        def specify_malformed_query(msg: str):
+            response.success = False
+            response.error = msg
+            self.get_logger().info(f"Returning response: {response}")
+            return response
+
         # Get robot
         if (self.robot is None) or (self.robot.name != request.jrl_robot_name):
             try:
@@ -80,38 +86,31 @@ class SubscriberNode(Node):
                 self.robot = get_robot(request.jrl_robot_name)
                 self.get_logger().info(f"Loaded robot '{self.robot.name}' in {time() - t0:.3f} seconds")
             except ValueError:
-                response.success = False
-                response.error = f"Robot '{request.jrl_robot_name}' doesn't exist in the Jrl library"
-                self.get_logger().info(f"Returning response: {response}")
-                return response
+                return specify_malformed_query(f"Robot '{request.jrl_robot_name}' doesn't exist in the Jrl library")
 
         # end effector frame doesn't match
         if self.robot.end_effector_link_name != request.end_effector_frame:
-            response.success = False
-            response.error = (
+            error = (
                 f"The provided dnd-effector frame '{request.end_effector_frame}' does not match the robot's"
                 f" end-effector link '{self.robot.end_effector_link_name}"
             )
-            self.get_logger().info(f"Returning response: {response}")
-            return response
+            return specify_malformed_query(error)
 
         # base link doesn't match
         robot_base_link_name = self.robot._end_effector_kinematic_chain[0].parent
         if robot_base_link_name != request.base_frame:
-            response.success = False
-            response.error = (
+            error = (
                 f"The provided base frame '{request.base_frame}' does not match the robot's base link"
                 f" '{robot_base_link_name}"
             )
-            self.get_logger().info(f"Returning response: {response}")
-            return response
+            return specify_malformed_query(error)
 
         self.obstacles = request.obstacles
         # TODO: redesign API, so that planner settings are configured here instead of being hardcoded. Note that the 
         # correct settings are configured with set_settings() below
         self.planner = PLANNERS[PLANNER](PLANNER_SETTINGS["CppFlowPlanner"], self.robot)
         response.success = True
-        self.get_logger().info(f"Returning response: {response}")
+        self.get_logger().info(f"Returning response: {response} ({time() - t0:.3f} seconds)")
         return response
 
     def query_callback(self, request, response):
@@ -177,6 +176,9 @@ class SubscriberNode(Node):
                 return specify_malformed_query("Initial configuration is self-colliding")
 
         try:
+            print("problem:")
+            for k, v in problem.__dict__.items():
+                print("  %s: %s" % (k, v ))
             plan = self.planner.generate_plan(problem).plan
         except (RuntimeError, AttributeError) as e:
             tb = traceback.extract_tb(e.__traceback__)[-1]
