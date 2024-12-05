@@ -21,15 +21,17 @@ def waypoints_to_se3_sequence(waypoints: List[Pose]) -> torch.Tensor:
     target_path = torch.zeros((len(waypoints), 7))
 
     for i, waypoint in enumerate(waypoints):
-        target_path[i, :] = torch.tensor([
-            waypoint.position.x,
-            waypoint.position.y,
-            waypoint.position.z,
-            waypoint.orientation.w,
-            waypoint.orientation.x,
-            waypoint.orientation.y,
-            waypoint.orientation.z,
-        ])
+        target_path[i, :] = torch.tensor(
+            [
+                waypoint.position.x,
+                waypoint.position.y,
+                waypoint.position.z,
+                waypoint.orientation.w,
+                waypoint.orientation.x,
+                waypoint.orientation.y,
+                waypoint.orientation.z,
+            ]
+        )
     return target_path
 
 

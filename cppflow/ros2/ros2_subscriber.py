@@ -65,6 +65,7 @@ class SubscriberNode(Node):
         self.obstacles = []
 
     def environment_setup_callback(self, request, response):
+        t0 = time()
         self.get_logger().info(f"Received a CppFlowEnvironmentConfig message: {request}")
 
         if SAVE_MESSAGES:
@@ -82,9 +83,9 @@ class SubscriberNode(Node):
         # Get robot
         if (self.robot is None) or (self.robot.name != request.jrl_robot_name):
             try:
-                t0 = time()
+                t0_robot = time()
                 self.robot = get_robot(request.jrl_robot_name)
-                self.get_logger().info(f"Loaded robot '{self.robot.name}' in {time() - t0:.3f} seconds")
+                self.get_logger().info(f"Loaded robot '{self.robot.name}' in {time() - t0_robot:.3f} seconds")
             except ValueError:
                 return specify_malformed_query(f"Robot '{request.jrl_robot_name}' doesn't exist in the Jrl library")
 
@@ -106,7 +107,7 @@ class SubscriberNode(Node):
             return specify_malformed_query(error)
 
         self.obstacles = request.obstacles
-        # TODO: redesign API, so that planner settings are configured here instead of being hardcoded. Note that the 
+        # TODO: redesign API, so that planner settings are configured here instead of being hardcoded. Note that the
         # correct settings are configured with set_settings() below
         self.planner = PLANNERS[PLANNER](PLANNER_SETTINGS["CppFlowPlanner"], self.robot)
         response.success = True
@@ -114,7 +115,9 @@ class SubscriberNode(Node):
         return response
 
     def query_callback(self, request, response):
+        t0 = time()
         self.get_logger().info(f"Received a CppFlowQuery message")
+        ndof = self.planner.robot.ndof
 
         def specify_malformed_query(msg: str):
             response.is_malformed_query = True
@@ -155,8 +158,11 @@ class SubscriberNode(Node):
         self.planner.set_settings(settings)
 
         # TODO: Add obstacles
-        q0 = to_torch(request.initial_configuration.position) if request.initial_configuration_is_set else None
-
+        q0 = (
+            to_torch(request.initial_configuration.position).view(1, ndof)
+            if request.initial_configuration_is_set
+            else None
+        )
         problem = Problem(
             target_path=waypoints_to_se3_sequence(request_problem.waypoints),
             initial_configuration=q0,
@@ -170,15 +176,12 @@ class SubscriberNode(Node):
         )
         # Check if initial configuration is valid
         if q0 is not None:
-            if qpaths_batched_env_collisions(problem, q0.view(1, 1, self.planner.robot.ndof)).item():
+            if qpaths_batched_env_collisions(problem, q0.view(1, 1, ndof)).item():
                 return specify_malformed_query("Initial configuration is in collision with environment")
-            if qpaths_batched_self_collisions(problem, q0.view(1, 1, self.planner.robot.ndof)).item():
+            if qpaths_batched_self_collisions(problem, q0.view(1, 1, ndof)).item():
                 return specify_malformed_query("Initial configuration is self-colliding")
 
         try:
-            print("problem:")
-            for k, v in problem.__dict__.items():
-                print("  %s: %s" % (k, v ))
             plan = self.planner.generate_plan(problem).plan
         except (RuntimeError, AttributeError) as e:
             tb = traceback.extract_tb(e.__traceback__)[-1]
@@ -197,15 +200,17 @@ class SubscriberNode(Node):
         response.trajectories = [plan_to_ros_trajectory(plan, self.robot)]
         response.success = [plan.is_valid]
         response.errors = [""]
-        self.get_logger().info("Planning complete - returning {} trajectories".format(len(response.trajectories)))
+        self.get_logger().info(
+            f"Planning complete - returning {len(response.trajectories)} trajectories ({time() - t0:.3f} seconds)"
+        )
         return response
-
 
 
 """ Usage
 
 ros2 run cppflow ros2_subscriber
 """
+
 
 def main(args=None):
     rclpy.init()
