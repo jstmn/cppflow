@@ -251,6 +251,10 @@ def to_numpy(x: torch.Tensor) -> np.ndarray:
     return x
 
 
+def m_to_mm(x):
+    return x * 1000.0
+
+
 def boolean_string(s):
     if isinstance(s, bool):
         return s

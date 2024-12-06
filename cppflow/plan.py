@@ -245,6 +245,7 @@ class Plan:
             "    joint limits in bounds:        "
             f" {make_text_green_or_red(not joint_limits_violated, not joint_limits_violated)}\n"
         )
+        s += f"    close-to-initial-configuration: {make_text_green_or_red(initial_q_valid, initial_q_valid)}\n"
         if joint_limits_violated:
             for i, violation_pct in enumerate(joint_limit_violation_pct):
                 s += (
@@ -259,7 +260,6 @@ class Plan:
             "    # env. collisions:              "
             f"{make_text_green_or_red(self.env_colliding_per_ts.sum().item(), self.env_colliding_per_ts.sum() == 0)}\n"
         )
-        s += f"    close-to-initial-configuration: {make_text_green_or_red(initial_q_valid, initial_q_valid)}\n"
 
         # ---
         s += "  ---\n"

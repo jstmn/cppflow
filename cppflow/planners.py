@@ -20,6 +20,7 @@ from cppflow.utils import (
     _plot_env_collisions,
     _get_mjacs,
     make_text_green_or_red,
+    m_to_mm,
 )
 from cppflow.problem import Problem
 from cppflow.config import DEBUG_MODE_ENABLED, DEVICE, SUCCESS_THRESHOLD_initial_q_norm_dist
@@ -475,44 +476,68 @@ class CppFlowPlanner(Planner):
         if "results_df" in kwargs:
             write_qpath_to_results_df(kwargs["results_df"], x_opt, problem)
 
-        # Check to see how far x_opt[0] is from the initial configuration
-        if problem.initial_configuration is not None:
+        if optimization_result.is_valid:
 
+            if problem.initial_configuration is None:
+                return return_(x_opt)
+
+            # Check to see how far x_opt[0] is from the initial configuration
             initial_q_norm_dist = torch.norm(problem.initial_configuration - x_opt[0])
-            print_v1(
-                f"Norm distance between initial_configuration, x_opt[0]: {initial_q_norm_dist}",
+            if initial_q_norm_dist < SUCCESS_THRESHOLD_initial_q_norm_dist:
+                return return_(x_opt)
+
+            print_v2(
+                f"'initial_configuration' is too far from x_opt[0] ({initial_q_norm_dist} <"
+                f" {SUCCESS_THRESHOLD_initial_q_norm_dist})",
                 verbosity=self._cfg.verbosity,
             )
+            # print("\nx_opt:            ", x_opt)
+            x_opt_swapped = torch.cat((problem.initial_configuration, x_opt[1:]), dim=0)
+            assert torch.norm(problem.initial_configuration - x_opt_swapped[0]) < 1e-6
+            # print("\nx_opt_swapped:    ", x_opt_swapped)
+            # print("\nproblem.initial_configuration:", problem.initial_configuration)
+            # print()
+            # print("fk(x_opt[0]):        ",   self.robot.forward_kinematics(x_opt)[0])
+            # print("fk(x_opt_swapped[0]):",   self.robot.forward_kinematics(x_opt_swapped)[0])
+            # print("fk_klampt(x_opt_swapped[0]):",   self.robot.forward_kinematics_klampt(x_opt_swapped[0].cpu().numpy()[None, :]))
+            # print()
+            # import numpy as np
+            # diff_x_opt = self.robot.forward_kinematics(x_opt)[0] - problem.target_path[0]
+            # diff_x_opt_swapped = self.robot.forward_kinematics(x_opt_swapped)[0] - problem.target_path[0]
+            # diff_q_initial = self.robot.forward_kinematics(problem.initial_configuration)[0] - problem.target_path[0]
+            # diff_x_opt_swapped_klampt = self.robot.forward_kinematics_klampt(x_opt_swapped[0].cpu().numpy()[None, :]) - problem.target_path[0].cpu().numpy()[None, :]
+            # print("fk(x_opt[0])         - target_pose[0]:        ",  diff_x_opt)
+            # print("fk(x_opt_swapped[0]) - target_pose[0]:        ",   diff_x_opt_swapped)
+            # print("fk_klampt(x_opt_swapped[0]): - target_pose[0]:",  diff_x_opt_swapped_klampt)
+            # print("fk(x_opt[0])         - target_pose[0]         (mm):", m_to_mm(diff_x_opt[0:3].norm().item()))
+            # print("fk(x_opt_swapped[0]) - target_pose[0]         (mm):", m_to_mm(diff_x_opt_swapped[0:3].norm().item()))
+            # print("fk(q_initial) - target_pose[0]         (mm):       ", m_to_mm(diff_q_initial[0:3].norm().item()))
+            # print("fk_klampt(x_opt_swapped[0]): - target_pose[0] (mm):", m_to_mm(np.linalg.norm(diff_x_opt_swapped_klampt[0:3]) ))
+            plan_from_xopt_swapped = plan_from_qpath(x_opt_swapped, problem)
+            # print()
+            # print_v1(f"Plan for x_opt_swapped:\n{plan_from_xopt_swapped}", verbosity=self._cfg.verbosity)
+            # print()
+            # print("position errors (mm):", plan_from_xopt_swapped.positional_errors_mm)
+            # print("target path:    ", plan_from_xopt_swapped.target_path)
+            # print("q_path:         ", plan_from_xopt_swapped.q_path)
+            # print()
+            # print()
+            if plan_from_xopt_swapped.is_valid:
+                print_v2(
+                    f"Valid trajectory found by swapping initial_configuration and x_opt[0], returning",
+                    verbosity=self._cfg.verbosity,
+                )
+                return return_(x_opt_swapped)
 
-            if initial_q_norm_dist < SUCCESS_THRESHOLD_initial_q_norm_dist:
-                # No action needed
-                pass
-            else:
-                x_opt_swapped = torch.cat((problem.initial_configuration, x_opt[1:]), dim=0)
-                assert torch.norm(problem.initial_configuration - x_opt_swapped[0]) < 1e-6
-                plan_from_xopt_swapped = plan_from_qpath(x_opt_swapped, problem)
-                print_v1(f"Plan for x_opt_swapped: {plan_from_xopt_swapped}", verbosity=self._cfg.verbosity)
-                print()
-                print("position errors:", plan_from_xopt_swapped.positional_errors_mm)
-                print("target path:    ", plan_from_xopt_swapped.target_path)
-                print("q_path:         ", plan_from_xopt_swapped.q_path)
-                if plan_from_xopt_swapped.is_valid:
-                    print_v1(
-                        f"Optimization found a plan for x_opt_swapped, which is valid, returning",
-                        verbosity=self._cfg.verbosity,
-                    )
-                    return return_(x_opt_swapped)
-
-        # Check if past tmax_sec
-        if time_is_exceeded():
-            print_v1(
-                f"Time limit exceeded after running optimization ({time() - t0:.3f} > {self._cfg.tmax_sec}), returning",
+            print_v2(
+                f"Invalid trajectory found when swapping initial_configuration and x_opt[0], returning original"
+                f" trajectory",
                 verbosity=self._cfg.verbosity,
             )
             return return_(x_opt)
 
         # Optionally rerun if optimization failed
-        if not optimization_result.is_valid and self._cfg.do_rerun_if_optimization_fails and rerun_data is None:
+        if self._cfg.do_rerun_if_optimization_fails and (rerun_data is None) and (not time_is_exceeded()):
             print_v1(f"\nRerunning dp_search because optimization failed", verbosity=self._cfg.verbosity)
             kwargs["rerun_data"] = q_data
             kwargs["t0"] = t0

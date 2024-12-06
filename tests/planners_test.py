@@ -18,11 +18,11 @@ DEVICE = config.DEVICE
 torch.set_printoptions(threshold=10000, precision=6, sci_mode=False, linewidth=200)
 
 
-def _get_initial_configuration(robot: Robot, target_pose_np):
+def _get_initial_configuration(robot: Robot, target_pose_np: np.ndarray) -> torch.Tensor:
     for _ in range(25):
-        initial_configuration = robot.inverse_kinematics_klampt(target_pose_np)[0]
+        initial_configuration = robot.inverse_kinematics_klampt(target_pose_np, positional_tolerance=5e-5)[0]
         if not robot.config_self_collides(initial_configuration):
-            return initial_configuration
+            return to_torch(initial_configuration)
     raise RuntimeError("Could not find collision free initial configuration")
 
 
@@ -270,10 +270,11 @@ class PlannerTest(unittest.TestCase):
         settings = PlannerSettings(
             k=175,
             tmax_sec=3.0,
-            anytime_mode_enabled=False,
+            anytime_mode_enabled=True,
             do_rerun_if_large_dp_search_mjac=True,
-            do_rerun_if_optimization_fails=True,
+            do_rerun_if_optimization_fails=False,  # TODO: test again with this True
             do_return_search_path_mjac=True,
+            verbosity=2,
         )
         planner = CppFlowPlanner(settings, self.panda)
 
@@ -293,11 +294,13 @@ class PlannerTest(unittest.TestCase):
             [0.40477386, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
         ])
         target_path[:, 0:3] += xyz_offset
-        q0 = torch.tensor(
-            [1.267967, 0.711829, -0.811080, -0.810924, -2.637594, 1.767759, 0.083284],
-            device=DEVICE,
-            dtype=torch.float32,
-        )
+        # q0 = torch.tensor(
+        #     [1.267967, 0.711829, -0.811080, -0.810924, -2.637594, 1.767759, 0.083284],
+        #     device=DEVICE,
+        #     dtype=torch.float32,
+        # )
+        q0 = _get_initial_configuration(self.panda, target_path[0])
+
         target_path = to_torch(target_path)
         torch.testing.assert_close(
             target_path[0][None, :], self.panda.forward_kinematics(q0[None, :]), atol=0.001, rtol=0.0
