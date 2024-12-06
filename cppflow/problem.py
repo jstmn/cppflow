@@ -13,8 +13,9 @@ from klampt.model import create
 from klampt import RigidObjectModel
 import torch
 
+from cppflow.config import SUCCESS_THRESHOLD_translation_ERR_MAX_MM
 from cppflow import config
-from cppflow.utils import get_filepath, to_torch
+from cppflow.utils import get_filepath, to_torch, m_to_mm
 
 np.set_printoptions(suppress=True)
 
@@ -112,6 +113,25 @@ class Problem:
         norms = quaternion_norm(self.target_path[:, 3:7])
         if max(norms) > 1.01 or min(norms) < 0.99:
             raise ValueError("quaternion(s) are not unit quaternion(s)")
+        if self.initial_configuration is not None:
+            assert (
+                len(self.initial_configuration.shape) == 2
+            ), f"'initial_configuration' should be [1, ndof], is {self.initial_configuration.shape}"
+            fk_error_q_initial = self.robot.forward_kinematics(self.initial_configuration)[0] - self.target_path[0]
+            fk_error_q_initial_klampt = (
+                self.robot.forward_kinematics_klampt(self.initial_configuration.cpu().numpy())
+                - self.target_path[0].cpu().numpy()[None, :]
+            )
+            pos_error_q_initial_mm = m_to_mm(fk_error_q_initial[0:3].norm().item())
+            pos_error_q_initial_klampt_mm = m_to_mm(np.linalg.norm(fk_error_q_initial_klampt[0:3]))
+            assert pos_error_q_initial_mm < SUCCESS_THRESHOLD_translation_ERR_MAX_MM, (
+                f"Position error for `initial_configuration` is too large ({pos_error_q_initial_mm} >"
+                f" {SUCCESS_THRESHOLD_translation_ERR_MAX_MM} mm)"
+            )
+            assert pos_error_q_initial_klampt_mm < SUCCESS_THRESHOLD_translation_ERR_MAX_MM, (
+                f"Position error for `initial_configuration` is too large ({pos_error_q_initial_mm} >"
+                f" {SUCCESS_THRESHOLD_translation_ERR_MAX_MM} mm)"
+            )
 
 
 def offset_target_path(

@@ -7,15 +7,23 @@ from jrl.robots import Panda
 
 from cppflow.evaluation_utils import angular_changes, prismatic_changes
 from cppflow.planners import Planner
-from cppflow.utils import set_seed
+from cppflow.utils import set_seed, to_torch
 from cppflow import config
-from cppflow.planners import PlannerSearcher
-from cppflow.problem import problem_from_filename
+from cppflow.planners import PlannerSearcher, PlannerSettings, CppFlowPlanner
+from cppflow.problem import problem_from_filename, Problem
 
 set_seed()
 
 DEVICE = config.DEVICE
 torch.set_printoptions(threshold=10000, precision=6, sci_mode=False, linewidth=200)
+
+
+def _get_initial_configuration(robot: Robot, target_pose_np: np.ndarray) -> torch.Tensor:
+    for _ in range(25):
+        initial_configuration = robot.inverse_kinematics_klampt(target_pose_np, positional_tolerance=5e-5)[0]
+        if not robot.config_self_collides(initial_configuration):
+            return to_torch(initial_configuration)
+    raise RuntimeError("Could not find collision free initial configuration")
 
 
 def _value_in_tensor(t: torch.Tensor, v: float) -> bool:
@@ -29,8 +37,16 @@ torch.set_default_device(config.DEVICE)
 
 class PlannerTest(unittest.TestCase):
     def setUp(self) -> None:
+        self.planner_settings = PlannerSettings(
+            k=175,
+            tmax_sec=2.5,
+            anytime_mode_enabled=False,
+            do_rerun_if_large_dp_search_mjac=True,
+            do_rerun_if_optimization_fails=True,
+            do_return_search_path_mjac=True,
+        )
         self.panda = Panda()
-        self.mocked_planner = Planner(self.panda, is_mock=True)
+        self.mocked_planner = Planner(self.planner_settings, self.panda, is_mock=True)
 
         # We assume the network width is 9 in this testsuite (see `IkflowModelParameters` in ikflow/model.py). Here is
         # where we verify that assumption
@@ -246,6 +262,72 @@ class PlannerTest(unittest.TestCase):
         )
         self.assertEqual(latent.shape, (125, 9))
         self.assert_tensor_is_unique(latent)
+
+    # python tests/planners_test.py PlannerTest.test_use_initial_configuration
+    def test_use_initial_configuration(self):
+
+        # Create a the planner
+        settings = PlannerSettings(
+            k=175,
+            tmax_sec=3.0,
+            anytime_mode_enabled=True,
+            do_rerun_if_large_dp_search_mjac=True,
+            do_rerun_if_optimization_fails=False,  # TODO: test again with this True
+            do_return_search_path_mjac=True,
+            verbosity=2,
+        )
+        planner = CppFlowPlanner(settings, self.panda)
+
+        # Create a problem. This is the beginning of the panda__1cube problem
+        xyz_offset = np.array([0, 0.5421984559194368, 0.7885155964931997])
+        target_path = np.array([
+            [0.45, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],  # x, y, z, qw, x, y, z
+            [0.44547737, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+            [0.44095477, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+            [0.43643215, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+            [0.43190953, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+            [0.4273869, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+            [0.42286432, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+            [0.4183417, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+            [0.41381907, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+            [0.40929648, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+            [0.40477386, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+        ])
+        target_path[:, 0:3] += xyz_offset
+        # q0 = torch.tensor(
+        #     [1.267967, 0.711829, -0.811080, -0.810924, -2.637594, 1.767759, 0.083284],
+        #     device=DEVICE,
+        #     dtype=torch.float32,
+        # )
+        q0 = _get_initial_configuration(self.panda, target_path[0])
+
+        target_path = to_torch(target_path)
+        torch.testing.assert_close(
+            target_path[0][None, :], self.panda.forward_kinematics(q0[None, :]), atol=0.001, rtol=0.0
+        )
+
+        problem = Problem(
+            target_path=target_path,
+            initial_configuration=q0[None, :],
+            robot=self.panda,
+            name="test-problem",
+            full_name="test-problem",
+            obstacles=[],
+            obstacles_Tcuboids=[],
+            obstacles_cuboids=[],
+            obstacles_klampt=[],
+        )
+
+        # Solve
+        plan = planner.generate_plan(problem).plan
+        print(plan)
+
+        # Check that the first q in the plan is the initial configuration
+        print("plan.q_path[0]:", plan.q_path[0])
+        print("q0:            ", q0)
+        print("difference:    ", plan.q_path[0] - q0)
+        print("norm distance: ", torch.norm(plan.q_path[0] - q0).item())
+        torch.testing.assert_close(plan.q_path[0], q0, atol=1e-5, rtol=0.0)
 
 
 if __name__ == "__main__":

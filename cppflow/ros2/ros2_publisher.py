@@ -17,17 +17,15 @@ from jrl.robots import Panda
 def _get_initial_configuration(robot: Robot, target_pose: Pose):
     warnings.warn("No collision checking is performed against obstacles in the scene to find an initial configuration.")
     for _ in range(25):
-        target_pose_np = np.array(
-            [
-                target_pose.position.x,
-                target_pose.position.y,
-                target_pose.position.z,
-                target_pose.orientation.w,
-                target_pose.orientation.x,
-                target_pose.orientation.y,
-                target_pose.orientation.z,
-            ]
-        )
+        target_pose_np = np.array([
+            target_pose.position.x,
+            target_pose.position.y,
+            target_pose.position.z,
+            target_pose.orientation.w,
+            target_pose.orientation.x,
+            target_pose.orientation.y,
+            target_pose.orientation.z,
+        ])
         initial_configuration = robot.inverse_kinematics_klampt(target_pose_np)[0]
         if not robot.config_self_collides(initial_configuration):
             return initial_configuration
@@ -96,21 +94,19 @@ class CppFlowQueryClient(Node):
         # This is the beginning of the panda__1cube problem
         xyz_offset = np.array([0, 0.5421984559194368, 0.7885155964931997])
         # x, y, z, qw, x, y, z
-        target_path = np.array(
-            [
-                [0.45, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-                [0.44547737, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-                [0.44095477, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-                [0.43643215, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-                [0.43190953, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-                [0.4273869, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-                [0.42286432, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-                [0.4183417, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-                [0.41381907, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-                [0.40929648, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-                [0.40477386, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-            ]
-        )
+        target_path = np.array([
+            [0.45, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+            [0.44547737, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+            [0.44095477, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+            [0.43643215, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+            [0.43190953, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+            [0.4273869, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+            [0.42286432, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+            [0.4183417, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+            [0.41381907, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+            [0.40929648, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+            [0.40477386, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+        ])
 
         problem = CppFlowProblem()
         problem.waypoints = []
@@ -143,9 +139,7 @@ class CppFlowQueryClient(Node):
                 zip(response.trajectories, response.success, response.errors)
             ):
                 self.get_logger().info(f"Problem {i}: Success = {success}, Error = {error}")
-                self.get_logger().info(
-                    f"Trajectory {i}: {trajectory.joint_names}, {len(trajectory.points)} points"
-                )
+                self.get_logger().info(f"Trajectory {i}: {trajectory.joint_names}, {len(trajectory.points)} points")
                 for j, point in enumerate(trajectory.points):
                     self.get_logger().info(f"  {j}: {point.positions}")
         except Exception as e:

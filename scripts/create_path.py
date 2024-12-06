@@ -34,15 +34,13 @@ def circle_path(output_filepath: str):
     time_out = np.arange(n_waypoints).reshape((n_waypoints, 1))
     rotations_out = np.zeros((n_waypoints, 4))
     rotations_out[:, 0] = 1.0
-    poses_out = np.hstack(
-        (
-            time_out,
-            xs.reshape((n_waypoints, 1)),
-            ys.reshape((n_waypoints, 1)),
-            zs.reshape((n_waypoints, 1)),
-            rotations_out,
-        )
-    )
+    poses_out = np.hstack((
+        time_out,
+        xs.reshape((n_waypoints, 1)),
+        ys.reshape((n_waypoints, 1)),
+        zs.reshape((n_waypoints, 1)),
+        rotations_out,
+    ))
 
     # save result to a csv
     df = pd.DataFrame(poses_out, columns=["time", "x", "y", "z", "qw", "qx", "qy", "qz"])
