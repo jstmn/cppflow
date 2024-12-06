@@ -124,10 +124,6 @@ class Problem:
             )
             pos_error_q_initial_mm = m_to_mm(fk_error_q_initial[0:3].norm().item())
             pos_error_q_initial_klampt_mm = m_to_mm(np.linalg.norm(fk_error_q_initial_klampt[0:3]))
-            # print("fk_error_q_initial:\t", fk_error_q_initial)
-            # print("fk_error_q_initial_klampt:\t", fk_error_q_initial_klampt)
-            # print("position error, fk_error_q_initial (mm):\t", pos_error_q_initial_mm)
-            # print("position error, fk_error_q_initial_klampt (mm):\t", pos_error_q_initial_klampt_mm)
             assert pos_error_q_initial_mm < SUCCESS_THRESHOLD_translation_ERR_MAX_MM, (
                 f"Position error for `initial_configuration` is too large ({pos_error_q_initial_mm} >"
                 f" {SUCCESS_THRESHOLD_translation_ERR_MAX_MM} mm)"
