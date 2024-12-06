@@ -121,15 +121,17 @@ class Problem:
             fk_error_q_initial_klampt = (
                 self.robot.forward_kinematics_klampt(self.initial_configuration.cpu().numpy())
                 - self.target_path[0].cpu().numpy()[None, :]
-            )
+            )[0]
+            assert fk_error_q_initial[0:3].numel() == 3, f"Fk position error term should be shaped [3], is {fk_error_q_initial.shape}"
+            assert fk_error_q_initial_klampt[0:3].size == 3, f"Fk position error term should be shaped [3], is {fk_error_q_initial_klampt.shape}"
             pos_error_q_initial_mm = m_to_mm(fk_error_q_initial[0:3].norm().item())
             pos_error_q_initial_klampt_mm = m_to_mm(np.linalg.norm(fk_error_q_initial_klampt[0:3]))
             assert pos_error_q_initial_mm < SUCCESS_THRESHOLD_translation_ERR_MAX_MM, (
-                f"Position error for `initial_configuration` is too large ({pos_error_q_initial_mm} >"
+                f"Position error for `initial_configuration` is too large ({pos_error_q_initial_mm:.5f} >"
                 f" {SUCCESS_THRESHOLD_translation_ERR_MAX_MM} mm)"
             )
             assert pos_error_q_initial_klampt_mm < SUCCESS_THRESHOLD_translation_ERR_MAX_MM, (
-                f"Position error for `initial_configuration` is too large ({pos_error_q_initial_mm} >"
+                f"Position error for `initial_configuration` is too large ({pos_error_q_initial_klampt_mm:.5f} >"
                 f" {SUCCESS_THRESHOLD_translation_ERR_MAX_MM} mm)"
             )
 

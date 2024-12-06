@@ -168,17 +168,22 @@ class SubscriberNode(Node):
             if request.initial_configuration_is_set
             else None
         )
-        problem = Problem(
-            target_path=waypoints_to_se3_sequence(request_problem.waypoints),
-            initial_configuration=q0,
-            robot=self.robot,
-            name="ros2-queried-problem",
-            full_name="ros2-queried-problem",
-            obstacles=[],
-            obstacles_Tcuboids=[],
-            obstacles_cuboids=[],
-            obstacles_klampt=[],
-        )
+        try:
+            problem = Problem(
+                target_path=waypoints_to_se3_sequence(request_problem.waypoints),
+                initial_configuration=q0,
+                robot=self.robot,
+                name="ros2-queried-problem",
+                full_name="ros2-queried-problem",
+                obstacles=[],
+                obstacles_Tcuboids=[],
+                obstacles_cuboids=[],
+                obstacles_klampt=[],
+            )
+        except AssertionError as e:
+            return specify_malformed_query(f"Creating 'Problem' dataclass failed: {e}")
+
+
         # Check if initial configuration is valid
         if q0 is not None:
             if qpaths_batched_env_collisions(problem, q0.view(1, 1, ndof)).item():
