@@ -257,6 +257,8 @@ def run_lm_alternating_loss(
         else:
             printc("  --> only pose")
             x_new, J, r = levenberg_marquardt_only_pose(opt_problem, opt_state, params_pose, return_residual=True)
+        # if opt_problem.fixed_initial_configuration is not None:
+        #     x_new[0, :] = opt_problem.fixed_initial_configuration
         opt_state.x = clamp_to_joint_limits(opt_problem.robot, x_new)
 
         # update results_df

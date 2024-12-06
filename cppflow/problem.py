@@ -112,6 +112,10 @@ class Problem:
         norms = quaternion_norm(self.target_path[:, 3:7])
         if max(norms) > 1.01 or min(norms) < 0.99:
             raise ValueError("quaternion(s) are not unit quaternion(s)")
+        if self.initial_configuration is not None:
+            assert (
+                len(self.initial_configuration.shape) == 2
+            ), f"'initial_configuration' should be [1, ndof], is {self.initial_configuration.shape}"
 
 
 def offset_target_path(

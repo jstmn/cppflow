@@ -22,7 +22,7 @@ from cppflow.utils import (
     make_text_green_or_red,
 )
 from cppflow.problem import Problem
-from cppflow.config import DEBUG_MODE_ENABLED, DEVICE
+from cppflow.config import DEBUG_MODE_ENABLED, DEVICE, SUCCESS_THRESHOLD_initial_q_norm_dist
 from cppflow.search import dp_search
 from cppflow.optimization import run_lm_optimization
 from cppflow.plan import Plan, plan_from_qpath, write_qpath_to_results_df
@@ -225,6 +225,7 @@ class Planner:
                 )
             else:
                 model_input = qs
+            assert len(model_input.shape) == 2, f"Model input should be 2D tensor, is {model_input.shape}"
             conditional = torch.cat([ee_pose.view(1, 7), SINGLE_PT_ZERO.view(1, 1)], dim=1)
             output_rev, _ = self._ikflow_solver.nn_model(model_input, c=conditional, rev=False)
             return output_rev
@@ -301,14 +302,9 @@ class Planner:
         # qs is [ k x n_timesteps x ndof ]
         if problem.initial_configuration is not None:
             k_current = qs.shape[0]  # may be different from self._cfg.k if existing_q_data is not None
-            # q0 = problem.initial_configuration.expand((k_current, 1, self.robot.ndof))
-            # qs = torch.cat([q0, qs], dim=1)
-            # zeros = SINGLE_PT_ZERO.expand((k_current, 1))
-            # self_collision_violations = torch.cat([zeros, self_collision_violations], dim=1)
-            # env_collision_violations = torch.cat([zeros, env_collision_violations], dim=1)
             qs[:, 0, :] = problem.initial_configuration
-            self_collision_violations[:, 0] = 0.0               # initial_configuration is assumed to be collision-free
-            env_collision_violations[:, 0] = 0.0                # initial_configuration is assumed to be collision-free
+            self_collision_violations[:, 0] = 0.0  # initial_configuration is assumed to be collision-free
+            env_collision_violations[:, 0] = 0.0  # initial_configuration is assumed to be collision-free
 
         time_coll_check = time() - t0_col_check
         debug_info = {}
@@ -316,16 +312,8 @@ class Planner:
         # dp_search
         t0_dp_search = time()
         with TimerContext(f"running dynamic programming search with qs: {qs.shape}", enabled=self._cfg.verbosity > 0):
-
             # [ ntimesteps, ndof ]
             qpath_search = dp_search(self.robot, qs, self_collision_violations, env_collision_violations).to(DEVICE)
-
-        # Remove initial configuration if it was added
-        # if problem.initial_configuration is not None:
-        #     qpath_search = qpath_search[1:, :]  # remove initial configuration
-        #     qs = qs[:, 1:, :]
-        #     self_collision_violations = self_collision_violations[:, 1:]
-        #     env_collision_violations = env_collision_violations[:, 1:]
 
         # Creating q_data needs to come after dp_search, so that in the case that there is an initial configuration
         # provided, it (the initial configuration) is removed from qs.
@@ -397,7 +385,9 @@ class CppFlowPlanner(Planner):
         super().__init__(settings, robot)
 
     def generate_plan(self, problem: Problem, **kwargs) -> PlannerResult:
-        t0 = time()
+
+        t0 = time() if "t0" not in kwargs else kwargs["t0"]
+
         rerun_data = kwargs["rerun_data"] if "rerun_data" in kwargs else None
         results_df = kwargs["results_df"] if "results_df" in kwargs else None
         search_qpath, is_valid, td, debug_info, q_data = self._run_pipeline(problem, **kwargs)
@@ -439,9 +429,12 @@ class CppFlowPlanner(Planner):
 
         # return if not anytime mode and search path is valid, or out of time
         if time_is_exceeded():
-            print_v2(f"Time limit exceeded after dp_search ({time() - t0:.3f} > {self._cfg.tmax_sec}), returning", verbosity=self._cfg.verbosity)
+            print_v2(
+                f"Time limit exceeded after dp_search ({time() - t0:.3f} > {self._cfg.tmax_sec}), returning",
+                verbosity=self._cfg.verbosity,
+            )
             return return_(search_qpath)
-        if ((not self._cfg.anytime_mode_enabled) and is_valid):
+        if (not self._cfg.anytime_mode_enabled) and is_valid:
             print_v2("dp_search path is valid and anytime mode is disabled, returning", verbosity=self._cfg.verbosity)
             return return_(search_qpath)
 
@@ -462,7 +455,6 @@ class CppFlowPlanner(Planner):
                     convergence_threshold=OPTIMIZATION_CONVERGENCE_THRESHOLD,
                     results_df=results_df,
                     verbosity=self._cfg.verbosity,
-                    initial_configuration=problem.initial_configuration,
                 )
             else:
                 optimization_result = run_lm_optimization(
@@ -477,19 +469,53 @@ class CppFlowPlanner(Planner):
                 )
             td.optimizer = time() - t0_opt
             debug_info["n_optimization_steps"] = optimization_result.n_steps_taken
+        x_opt = optimization_result.x_opt.detach()
 
         # update convergence result
         if "results_df" in kwargs:
-            write_qpath_to_results_df(kwargs["results_df"], optimization_result.x_opt, problem)
+            write_qpath_to_results_df(kwargs["results_df"], x_opt, problem)
+
+        # Check to see how far x_opt[0] is from the initial configuration
+        if problem.initial_configuration is not None:
+
+            initial_q_norm_dist = torch.norm(problem.initial_configuration - x_opt[0])
+            print_v1(
+                f"Norm distance between initial_configuration, x_opt[0]: {initial_q_norm_dist}",
+                verbosity=self._cfg.verbosity,
+            )
+
+            if initial_q_norm_dist < SUCCESS_THRESHOLD_initial_q_norm_dist:
+                # No action needed
+                pass
+            else:
+                x_opt_swapped = torch.cat((problem.initial_configuration, x_opt[1:]), dim=0)
+                assert torch.norm(problem.initial_configuration - x_opt_swapped[0]) < 1e-6
+                plan_from_xopt_swapped = plan_from_qpath(x_opt_swapped, problem)
+                print_v1(f"Plan for x_opt_swapped: {plan_from_xopt_swapped}", verbosity=self._cfg.verbosity)
+                print()
+                print("position errors:", plan_from_xopt_swapped.positional_errors_mm)
+                print("target path:    ", plan_from_xopt_swapped.target_path)
+                print("q_path:         ", plan_from_xopt_swapped.q_path)
+                if plan_from_xopt_swapped.is_valid:
+                    print_v1(
+                        f"Optimization found a plan for x_opt_swapped, which is valid, returning",
+                        verbosity=self._cfg.verbosity,
+                    )
+                    return return_(x_opt_swapped)
 
         # Check if past tmax_sec
         if time_is_exceeded():
-            return return_(optimization_result.x_opt.detach())
+            print_v1(
+                f"Time limit exceeded after running optimization ({time() - t0:.3f} > {self._cfg.tmax_sec}), returning",
+                verbosity=self._cfg.verbosity,
+            )
+            return return_(x_opt)
 
         # Optionally rerun if optimization failed
         if not optimization_result.is_valid and self._cfg.do_rerun_if_optimization_fails and rerun_data is None:
             print_v1(f"\nRerunning dp_search because optimization failed", verbosity=self._cfg.verbosity)
             kwargs["rerun_data"] = q_data
+            kwargs["t0"] = t0
             return self.generate_plan(problem, **kwargs)
 
-        return return_(optimization_result.x_opt.detach())
+        return return_(x_opt)

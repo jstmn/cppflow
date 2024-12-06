@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Optional
 from time import time
 
 import torch
@@ -12,6 +12,7 @@ from cppflow.config import (
     SUCCESS_THRESHOLD_mjac_CM,
     ENV_COLLISIONS_IGNORED,
     SELF_COLLISIONS_IGNORED,
+    SUCCESS_THRESHOLD_initial_q_norm_dist,
 )
 
 from cppflow.utils import make_text_green_or_red, to_torch
@@ -50,6 +51,7 @@ class Plan:
     env_colliding_per_ts: torch.Tensor
     positional_errors: torch.Tensor
     rotational_errors: torch.Tensor
+    provided_initial_configuration: Optional[torch.Tensor]
 
     def __post_init__(self):
         assert isinstance(self.q_path, torch.Tensor)
@@ -169,6 +171,12 @@ class Plan:
         return joint_limits_exceeded(self.robot_joint_limits, self.q_path)[0]
 
     @property
+    def initial_q_norm_dist(self) -> float:
+        if self.provided_initial_configuration is None:
+            return 0.0
+        return torch.norm(self.provided_initial_configuration - self.q_path[0]).item()
+
+    @property
     def is_valid(self) -> bool:
         joint_limits_violated, _ = joint_limits_exceeded(self.robot_joint_limits, self.q_path)
         iv = (
@@ -181,6 +189,7 @@ class Plan:
             )[0]
             and self.self_colliding_per_ts.sum() == 0
             and self.env_colliding_per_ts.sum() == 0
+            and self.initial_q_norm_dist < SUCCESS_THRESHOLD_initial_q_norm_dist
         )
         if isinstance(iv, torch.Tensor):
             return iv.item()
@@ -198,6 +207,7 @@ class Plan:
         self_coll_valid = self.self_colliding_per_ts.sum() == 0
         env_coll_valid = self.env_colliding_per_ts.sum() == 0
         is_valid = self.is_valid
+        initial_q_valid = self.initial_q_norm_dist < SUCCESS_THRESHOLD_initial_q_norm_dist
         assert is_valid == (
             mjac_deg_valid
             and mjac_cm_valid
@@ -206,6 +216,7 @@ class Plan:
             and (not joint_limits_violated)
             and self_coll_valid
             and env_coll_valid
+            and initial_q_valid
         ), (
             f"self.isvalid disagrees with manual calculation.\n  self.is_valid: {is_valid}\n  mjac_deg_valid:"
             f" {mjac_deg_valid}\n  mjac_cm_valid: {mjac_cm_valid}\n  "
@@ -248,6 +259,7 @@ class Plan:
             "    # env. collisions:              "
             f"{make_text_green_or_red(self.env_colliding_per_ts.sum().item(), self.env_colliding_per_ts.sum() == 0)}\n"
         )
+        s += f"    close-to-initial-configuration: {make_text_green_or_red(initial_q_valid, initial_q_valid)}\n"
 
         # ---
         s += "  ---\n"
@@ -257,6 +269,7 @@ class Plan:
         s += f"  max positional error: {round(self.max_positional_error_mm, round_amt)} mm\n"
         s += f"  ave rotational error: {round(self.mean_rotational_error_deg, round_amt)} deg\n"
         s += f"  max rotational error: {round(self.max_rotational_error_deg, round_amt)} deg\n"
+        s += f"   q_initial norm dist: {round(self.initial_q_norm_dist, round_amt)}\n"
         s += "  ---\n"
         s += f"       path length rad: {round(self.path_length_rad, round_amt)}\n"
         s += f"         path length m: {round(self.path_length_m, round_amt)}\n"
@@ -280,7 +293,7 @@ class PlanNp:
         return item
 
 
-def plan_from_qpath(qpath: torch.Tensor, problem: Problem) -> Plan:
+def plan_from_qpath(qpath: torch.Tensor, problem: Problem, do_replace_with_initial_q_if_valid: bool = False) -> Plan:
     """Converts a qpath to a plan.
 
     Note: mean runtime is 0.08366363048553467. Don't call this when timed
@@ -310,6 +323,7 @@ def plan_from_qpath(qpath: torch.Tensor, problem: Problem) -> Plan:
         env_colliding_per_ts=env_colliding,
         positional_errors=positional_errors(traced_path, problem.target_path),
         rotational_errors=rotational_errors(traced_path, problem.target_path),
+        provided_initial_configuration=problem.initial_configuration,
     )
 
 

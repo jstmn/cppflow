@@ -135,7 +135,9 @@ class SubscriberNode(Node):
             return specify_malformed_query("No problems provided")
 
         if request.max_planning_time_sec < 1e-6:
-            return specify_malformed_query(f"Planning time is too short (`max_planning_time_sec`: {request.max_planning_time_sec})")
+            return specify_malformed_query(
+                f"Planning time is too short (`max_planning_time_sec`: {request.max_planning_time_sec})"
+            )
 
         if len(request.problems) > 1:
             return specify_malformed_query("Only 1 planning problem allowed per query currently")
@@ -204,7 +206,8 @@ class SubscriberNode(Node):
         response.success = [plan.is_valid]
         response.errors = [""]
         self.get_logger().info(
-            f"Planning complete - returning {sum(response.success)} / {len(response.trajectories)} successful trajectories ({time() - t0:.3f} seconds)"
+            f"Planning complete - returning {sum(response.success)} / {len(response.trajectories)} successful"
+            f" trajectories ({time() - t0:.3f} seconds)"
         )
         return response
 

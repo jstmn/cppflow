@@ -14,8 +14,7 @@ from cppflow.optimization import (
     levenberg_marquardt_only_pose,
 )
 from cppflow.planners import PlannerSearcher
-from cppflow.optimization_utils import LmResidualFns, get_pose_only_optimization_parameters
-from cppflow.lm_residuals_naive import LmResidualFnsNaive
+from cppflow.optimization_utils import LmResidualFns
 
 PI = torch.pi
 torch.set_printoptions(linewidth=5000, precision=8, sci_mode=False)
