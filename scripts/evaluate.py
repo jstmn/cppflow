@@ -10,7 +10,8 @@ import psutil
 import torch
 import pandas as pd
 
-from cppflow.planners import PlannerSearcher, CppFlowPlanner, Planner, PlannerResult, TimingData, PlannerSettings
+from cppflow.planners import PlannerSearcher, CppFlowPlanner, Planner
+from cppflow.data_types import PlannerSettings, PlannerResult, TimingData, PlannerSettings, Constraints
 from cppflow.problem import problem_from_filename, get_all_problems, Problem
 from cppflow.utils import set_seed, to_torch
 from cppflow.config import DEVICE, SELF_COLLISIONS_IGNORED, ENV_COLLISIONS_IGNORED, DEBUG_MODE_ENABLED
@@ -47,19 +48,20 @@ PD_COLUMN_NAMES = [
     "Mjac - revolute (deg)",
 ]
 
+CONSTRAINTS = Constraints(
+    max_allowed_position_error_cm=0.01,  # 0.1mm
+    max_allowed_rotation_error_deg=0.1,
+    max_allowed_mjac_deg=3.0,
+    max_allowed_mjac_cm=0.5,
+)
+
 
 def _eval_planner_on_problem(planner: Type[Planner], problem: Problem, planner_settings: PlannerSettings):
-    result = planner.generate_plan(problem, planner_settings)
+    result = planner.generate_plan(problem, CONSTRAINTS, planner_settings)
     print()
     print(result.plan)
     print()
-    print("timing:")
-    print("  total:         ", result.timing.total)
-    print("  ikflow:        ", result.timing.ikflow)
-    print("  coll_checking: ", result.timing.coll_checking)
-    print("  batch_opt:     ", result.timing.batch_opt)
-    print("  dp_search:     ", result.timing.dp_search)
-    print("  optimizer:     ", result.timing.optimizer)
+    print(result.timing)
     time_per_optimization_step = result.timing.optimizer / result.debug_info["n_optimization_steps"]
     round_amt = 5
     return [
@@ -250,9 +252,10 @@ python scripts/evaluate.py --planner CppFlowAnytime --problem=panda__2cubes --vi
 python scripts/evaluate.py --planner CppFlowAnytime --problem=panda__flappy_bird --visualize
 
 python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch_arm__hello_mini --visualize --use_fixed_initial_configuration
-python scripts/evaluate.py --planner CppFlowAnytime --problem=panda__1cube_mini --plot --use_fixed_initial_configuration
 
 python scripts/evaluate.py --planner CppFlowAnytime --problem=panda__1cube_mini --plan_filepath=many_env_collisions[0].pt
+python scripts/evaluate.py --planner CppFlowAnytime --problem=panda__1cube_mini --plot --use_fixed_initial_configuration
+python scripts/evaluate.py --planner CppFlowAnytime --problem=panda__1cube_mini
 """
 
 
@@ -301,7 +304,7 @@ def main(args):
             planner_result = PlannerResult(plan, TimingData(0, 0, 0, 0, 0, 0), [], [], {})
         else:
             planner: Planner = PLANNERS[args.planner_name](planner_settings, problem.robot)
-            planner_result = planner.generate_plan(problem)
+            planner_result = planner.generate_plan(problem, CONSTRAINTS)
 
             # save results to disk
             # torch.save(planner_result.plan, f"pt_tensors/plan__{problem.full_name}__{planner.name}.pt")
@@ -313,13 +316,7 @@ def main(args):
             print()
             print(planner_result.plan)
             print()
-            print("timing:")
-            print("  total:         ", planner_result.timing.total)
-            print("  ikflow:        ", planner_result.timing.ikflow)
-            print("  coll_checking: ", planner_result.timing.coll_checking)
-            print("  batch_opt:     ", planner_result.timing.batch_opt)
-            print("  dp_search:     ", planner_result.timing.dp_search)
-            print("  optimizer:     ", planner_result.timing.optimizer)
+            print(planner_result.timing)
             print()
             print("debug_info:")
             for k, v in planner_result.debug_info.items():

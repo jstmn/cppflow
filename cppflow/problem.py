@@ -2,6 +2,7 @@ from typing import Optional, List, Dict
 from dataclasses import dataclass
 import os
 import csv
+from time import time
 
 import yaml
 from jrl.robot import Robot
@@ -13,7 +14,6 @@ from klampt.model import create
 from klampt import RigidObjectModel
 import torch
 
-from cppflow.config import SUCCESS_THRESHOLD_translation_ERR_MAX_MM
 from cppflow import config
 from cppflow.utils import get_filepath, to_torch, m_to_mm
 
@@ -92,6 +92,13 @@ class Problem:
         rotational_changes = geodesic_distance_between_quaternions(q0, q1)
         return torch.rad2deg(rotational_changes.abs().sum() - total_imagined_error).item()
 
+    def write_qpath_to_results_df(self, results_df: Dict, qpath: torch.Tensor):
+        raise NotImplementedError("need to refactor to avoid circular dependencies from plan_from_qpath()")
+        tnow = time()
+        plan = plan_from_qpath(qpath, self)
+        results_df["t0"] += time() - tnow
+        plan.append_to_results_df(results_df)
+
     def __str__(self, prefix: str = "") -> str:
         n = self.target_path.shape[0]
         s = f"{prefix}<Problem>"
@@ -114,6 +121,7 @@ class Problem:
         if max(norms) > 1.01 or min(norms) < 0.99:
             raise ValueError("quaternion(s) are not unit quaternion(s)")
         if self.initial_configuration is not None:
+            max_translation_mm = 0.1
             assert (
                 len(self.initial_configuration.shape) == 2
             ), f"'initial_configuration' should be [1, ndof], is {self.initial_configuration.shape}"
@@ -122,17 +130,21 @@ class Problem:
                 self.robot.forward_kinematics_klampt(self.initial_configuration.cpu().numpy())
                 - self.target_path[0].cpu().numpy()[None, :]
             )[0]
-            assert fk_error_q_initial[0:3].numel() == 3, f"Fk position error term should be shaped [3], is {fk_error_q_initial.shape}"
-            assert fk_error_q_initial_klampt[0:3].size == 3, f"Fk position error term should be shaped [3], is {fk_error_q_initial_klampt.shape}"
+            assert (
+                fk_error_q_initial[0:3].numel() == 3
+            ), f"Fk position error term should be shaped [3], is {fk_error_q_initial.shape}"
+            assert (
+                fk_error_q_initial_klampt[0:3].size == 3
+            ), f"Fk position error term should be shaped [3], is {fk_error_q_initial_klampt.shape}"
             pos_error_q_initial_mm = m_to_mm(fk_error_q_initial[0:3].norm().item())
             pos_error_q_initial_klampt_mm = m_to_mm(np.linalg.norm(fk_error_q_initial_klampt[0:3]))
-            assert pos_error_q_initial_mm < SUCCESS_THRESHOLD_translation_ERR_MAX_MM, (
+            assert pos_error_q_initial_mm < max_translation_mm, (
                 f"Position error for `initial_configuration` is too large ({pos_error_q_initial_mm:.5f} >"
-                f" {SUCCESS_THRESHOLD_translation_ERR_MAX_MM} mm)"
+                f" {max_translation_mm} mm)"
             )
-            assert pos_error_q_initial_klampt_mm < SUCCESS_THRESHOLD_translation_ERR_MAX_MM, (
+            assert pos_error_q_initial_klampt_mm < max_translation_mm, (
                 f"Position error for `initial_configuration` is too large ({pos_error_q_initial_klampt_mm:.5f} >"
-                f" {SUCCESS_THRESHOLD_translation_ERR_MAX_MM} mm)"
+                f" {max_translation_mm} mm)"
             )
 
 

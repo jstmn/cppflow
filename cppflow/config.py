@@ -11,13 +11,12 @@ torch.set_default_device(DEVICE)
 
 VERBOSITY = 2
 
-# Success criteria
-SUCCESS_THRESHOLD_translation_ERR_MAX_CM = 0.01  # 0.1mm
-SUCCESS_THRESHOLD_translation_ERR_MAX_MM = SUCCESS_THRESHOLD_translation_ERR_MAX_CM * 10
-SUCCESS_THRESHOLD_rotation_ERR_MAX_DEG = 0.1  #
-SUCCESS_THRESHOLD_mjac_CM = 2  # for prismatic joints
-SUCCESS_THRESHOLD_mjac_DEG = 3  # for revolute joints
 SUCCESS_THRESHOLD_initial_q_norm_dist = 0.01
+
+DEFAULT_RERUN_MJAC_THRESHOLD_DEG = 13.0
+DEFAULT_RERUN_MJAC_THRESHOLD_CM = 3.42
+OPTIMIZATION_CONVERGENCE_THRESHOLD = 0.005
+
 
 # LM optimization
 SELF_COLLISIONS_IGNORED = False

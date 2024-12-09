@@ -1,5 +1,4 @@
 from abc import abstractmethod
-from dataclasses import dataclass
 from typing import List, Tuple, Dict
 from time import time
 import warnings
@@ -15,19 +14,22 @@ from cppflow.utils import (
     TimerContext,
     print_v1,
     print_v2,
-    print_v3,
     _plot_self_collisions,
     _plot_env_collisions,
-    _get_mjacs,
     make_text_green_or_red,
-    m_to_mm,
 )
 from cppflow.problem import Problem
-from cppflow.config import DEBUG_MODE_ENABLED, DEVICE, SUCCESS_THRESHOLD_initial_q_norm_dist
+from cppflow.config import (
+    DEBUG_MODE_ENABLED,
+    DEVICE,
+    SUCCESS_THRESHOLD_initial_q_norm_dist,
+    OPTIMIZATION_CONVERGENCE_THRESHOLD,
+)
 from cppflow.search import dp_search
 from cppflow.optimization import run_lm_optimization
-from cppflow.plan import Plan, plan_from_qpath, write_qpath_to_results_df
+from cppflow.data_types import Constraints, TimingData, PlannerSettings, PlannerResult, plan_from_qpath
 from cppflow.collision_detection import qpaths_batched_self_collisions, qpaths_batched_env_collisions
+from cppflow.evaluation_utils import get_mjacs
 
 
 ROBOT_TO_IKFLOW_MODEL = {
@@ -42,56 +44,12 @@ ROBOT_TO_IKFLOW_MODEL = {
 MOCK_IKFLOW_PARAMS = IkflowModelParameters()
 SINGLE_PT_ZERO = torch.zeros(1)
 
+#
 DEFAULT_RERUN_NEW_K = 125  # the existing k configs will be added to this so no need to go overboard
-# DEFAULT_RERUN_NEW_K = 10  # the existing k configs will be added to this so no need to go overboard
-DEFAULT_RERUN_MJAC_THRESHOLD_DEG = 13.0
-DEFAULT_RERUN_MJAC_THRESHOLD_CM = 3.42
-
-OPTIMIZATION_CONVERGENCE_THRESHOLD = 0.005
-
-
-@dataclass
-class TimingData:
-    total: float
-    ikflow: float
-    coll_checking: float
-    batch_opt: float
-    dp_search: float
-    optimizer: float
-
-
-@dataclass
-class PlannerResult:
-    plan: Plan
-    timing: TimingData
-    other_plans: List[Plan]
-    other_plans_names: List[str]
-    debug_info: dict
-
-
-@dataclass
-class PlannerSettings:
-    k: int
-    tmax_sec: float
-    anytime_mode_enabled: bool
-    latent_distribution: str = "uniform"
-    latent_vector_scale: float = 2.0
-    run_dp_search: bool = True
-    do_rerun_if_optimization_fails: bool = False
-    do_rerun_if_large_dp_search_mjac: bool = False
-    rerun_mjac_threshold_deg: bool = DEFAULT_RERUN_MJAC_THRESHOLD_DEG
-    rerun_mjac_threshold_cm: bool = DEFAULT_RERUN_MJAC_THRESHOLD_CM
-    do_return_search_path_mjac: bool = False
-    return_only_1st_plan: bool = False
-    verbosity: int = 1
-
-    def __post_init__(self):
-        assert self.latent_distribution in {"uniform", "gaussian"}
-        assert self.latent_vector_scale > 0.0
 
 
 def add_search_path_mjac(debug_info: Dict, problem: Problem, qpath_search: torch.Tensor):
-    mjac_deg, mjac_cm = _get_mjacs(problem.robot, qpath_search)
+    mjac_deg, mjac_cm = get_mjacs(problem.robot, qpath_search)
     debug_info["search_path_mjac-cm"] = mjac_cm
     debug_info["search_path_mjac-deg"] = mjac_deg
     _, qps_prismatic = problem.robot.split_configs_to_revolute_and_prismatic(qpath_search)
@@ -152,7 +110,7 @@ class Planner:
         return str(self.__class__.__name__)
 
     @abstractmethod
-    def generate_plan(self, problem: Problem, **kwargs) -> PlannerResult:
+    def generate_plan(self, problem: Problem, constraints: Constraints, **kwargs) -> PlannerResult:
         raise NotImplementedError()
 
     # Private methods
@@ -321,7 +279,7 @@ class Planner:
         q_data = (qs, self_collision_violations, env_collision_violations)
         time_dp_search = time() - t0_dp_search
         if "results_df" in kwargs:
-            write_qpath_to_results_df(kwargs["results_df"], qpath_search, problem)
+            problem.write_qpath_to_results_df(kwargs["results_df"], qpath_search)
 
         if DEBUG_MODE_ENABLED and self._cfg.do_return_search_path_mjac:
             add_search_path_mjac(debug_info, problem, qpath_search)
@@ -350,7 +308,7 @@ class PlannerSearcher(Planner):
         super().__init__(settings, robot)
         assert self._cfg.run_dp_search
 
-    def generate_plan(self, problem: Problem, **kwargs) -> PlannerResult:
+    def generate_plan(self, problem: Problem, constraints: Constraints, **kwargs) -> PlannerResult:
         """Runs dp_search and returns"""
         assert problem.robot.name == self.robot.name
 
@@ -359,19 +317,19 @@ class PlannerSearcher(Planner):
 
         # rerun dp_search with larger k if mjac is too high
         if self._cfg.do_rerun_if_large_dp_search_mjac:
-            mjac_deg, mjac_cm = _get_mjacs(problem.robot, qpath_search)
+            mjac_deg, mjac_cm = get_mjacs(problem.robot, qpath_search)
             if mjac_deg > self._cfg.rerun_mjac_threshold_deg or mjac_cm > self._cfg.rerun_mjac_threshold_cm:
                 print_v1(
                     f"\nRerunning dp_search with larger k b/c mjac is too high: {mjac_deg} deg, {mjac_cm} cm",
                     verbosity=self._cfg.verbosity,
                 )
                 qpath_search, _, td, debug_info, _ = self._run_pipeline(problem, **kwargs)
-                mjac_deg, mjac_cm = _get_mjacs(problem.robot, qpath_search)
+                mjac_deg, mjac_cm = get_mjacs(problem.robot, qpath_search)
                 print_v1(f"new mjac after dp_search with larger k: {mjac_deg} deg,  cm", verbosity=self._cfg.verbosity)
 
         time_total = time() - t0
         return PlannerResult(
-            plan_from_qpath(qpath_search.detach(), problem),
+            plan_from_qpath(qpath_search.detach(), problem, constraints),
             TimingData(time_total, td.ikflow, td.coll_checking, td.batch_opt, td.dp_search, 0.0),
             [],
             [],
@@ -385,7 +343,7 @@ class CppFlowPlanner(Planner):
     def __init__(self, settings: PlannerSettings, robot: Robot):
         super().__init__(settings, robot)
 
-    def generate_plan(self, problem: Problem, **kwargs) -> PlannerResult:
+    def generate_plan(self, problem: Problem, constraints: Constraints, **kwargs) -> PlannerResult:
 
         t0 = time() if "t0" not in kwargs else kwargs["t0"]
 
@@ -398,7 +356,7 @@ class CppFlowPlanner(Planner):
 
         def return_(qpath):
             return PlannerResult(
-                plan_from_qpath(qpath, problem),
+                plan_from_qpath(qpath, problem, constraints),
                 TimingData(time() - t0, td.ikflow, td.coll_checking, td.batch_opt, td.dp_search, 0.0),
                 [],
                 [],
@@ -408,12 +366,12 @@ class CppFlowPlanner(Planner):
         # Optionally return only the 1st plan
         if self._cfg.return_only_1st_plan:
             return PlannerResult(
-                plan_from_qpath(search_qpath, problem), TimingData(time() - t0, 0, 0, 0, 0, 0), [], [], {}
+                plan_from_qpath(search_qpath, problem, constraints), TimingData(time() - t0, 0, 0, 0, 0, 0), [], [], {}
             )
 
         # rerun dp_search with larger k if mjac is too high
         if self._cfg.do_rerun_if_large_dp_search_mjac:
-            mjac_deg, mjac_cm = _get_mjacs(problem.robot, search_qpath)
+            mjac_deg, mjac_cm = get_mjacs(problem.robot, search_qpath)
             if mjac_deg > self._cfg.rerun_mjac_threshold_deg or mjac_cm > self._cfg.rerun_mjac_threshold_cm:
                 print_v1(
                     f"{ make_text_green_or_red('Rerunning', False)} dp_search with larger k b/c mjac is too high:"
@@ -422,11 +380,11 @@ class CppFlowPlanner(Planner):
                 )
                 kwargs["rerun_data"] = q_data
                 search_qpath, is_valid, td, debug_info, q_data = self._run_pipeline(problem, **kwargs)
-                mjac_deg, mjac_cm = _get_mjacs(problem.robot, search_qpath)
+                mjac_deg, mjac_cm = get_mjacs(problem.robot, search_qpath)
                 print_v1(f"new mjac after dp_search with larger k: {mjac_deg} deg,  cm", verbosity=self._cfg.verbosity)
 
         print_v2("\ndp_search path:", verbosity=self._cfg.verbosity)
-        print_v2(str(plan_from_qpath(search_qpath, problem)), verbosity=self._cfg.verbosity)
+        print_v2(str(plan_from_qpath(search_qpath, problem, constraints)), verbosity=self._cfg.verbosity)
 
         # return if not anytime mode and search path is valid, or out of time
         if time_is_exceeded():
@@ -444,11 +402,12 @@ class CppFlowPlanner(Planner):
         # Run optimization
         # TODO(@jstmn): Handle the `initial_configuration` during optimization. This should be a fixed value that
         # impacts the gradient of the trajectory.
-        with TimerContext(f"running run_lm_optimization()", enabled=self._cfg.verbosity > 0):
+        with TimerContext("running run_lm_optimization()", enabled=self._cfg.verbosity > 0):
             t0_opt = time()
             if self._cfg.anytime_mode_enabled:
                 optimization_result = run_lm_optimization(
                     problem,
+                    constraints,
                     search_qpath,
                     max_n_steps=50,
                     tmax_sec=self._cfg.tmax_sec - (time() - t0),
@@ -460,6 +419,7 @@ class CppFlowPlanner(Planner):
             else:
                 optimization_result = run_lm_optimization(
                     problem,
+                    constraints,
                     search_qpath,
                     tmax_sec=self._cfg.tmax_sec - (time() - t0),
                     max_n_steps=100,
@@ -474,10 +434,9 @@ class CppFlowPlanner(Planner):
 
         # update convergence result
         if "results_df" in kwargs:
-            write_qpath_to_results_df(kwargs["results_df"], x_opt, problem)
+            problem.write_qpath_to_results_df(kwargs["results_df"], x_opt)
 
         if optimization_result.is_valid:
-
             if problem.initial_configuration is None:
                 return return_(x_opt)
 
@@ -491,56 +450,27 @@ class CppFlowPlanner(Planner):
                 f" {SUCCESS_THRESHOLD_initial_q_norm_dist})",
                 verbosity=self._cfg.verbosity,
             )
-            # print("\nx_opt:            ", x_opt)
             x_opt_swapped = torch.cat((problem.initial_configuration, x_opt[1:]), dim=0)
             assert torch.norm(problem.initial_configuration - x_opt_swapped[0]) < 1e-6
-            # print("\nx_opt_swapped:    ", x_opt_swapped)
-            # print("\nproblem.initial_configuration:", problem.initial_configuration)
-            # print()
-            # print("fk(x_opt[0]):        ",   self.robot.forward_kinematics(x_opt)[0])
-            # print("fk(x_opt_swapped[0]):",   self.robot.forward_kinematics(x_opt_swapped)[0])
-            # print("fk_klampt(x_opt_swapped[0]):",   self.robot.forward_kinematics_klampt(x_opt_swapped[0].cpu().numpy()[None, :]))
-            # print()
-            # import numpy as np
-            # diff_x_opt = self.robot.forward_kinematics(x_opt)[0] - problem.target_path[0]
-            # diff_x_opt_swapped = self.robot.forward_kinematics(x_opt_swapped)[0] - problem.target_path[0]
-            # diff_q_initial = self.robot.forward_kinematics(problem.initial_configuration)[0] - problem.target_path[0]
-            # diff_x_opt_swapped_klampt = self.robot.forward_kinematics_klampt(x_opt_swapped[0].cpu().numpy()[None, :]) - problem.target_path[0].cpu().numpy()[None, :]
-            # print("fk(x_opt[0])         - target_pose[0]:        ",  diff_x_opt)
-            # print("fk(x_opt_swapped[0]) - target_pose[0]:        ",   diff_x_opt_swapped)
-            # print("fk_klampt(x_opt_swapped[0]): - target_pose[0]:",  diff_x_opt_swapped_klampt)
-            # print("fk(x_opt[0])         - target_pose[0]         (mm):", m_to_mm(diff_x_opt[0:3].norm().item()))
-            # print("fk(x_opt_swapped[0]) - target_pose[0]         (mm):", m_to_mm(diff_x_opt_swapped[0:3].norm().item()))
-            # print("fk(q_initial) - target_pose[0]         (mm):       ", m_to_mm(diff_q_initial[0:3].norm().item()))
-            # print("fk_klampt(x_opt_swapped[0]): - target_pose[0] (mm):", m_to_mm(np.linalg.norm(diff_x_opt_swapped_klampt[0:3]) ))
-            plan_from_xopt_swapped = plan_from_qpath(x_opt_swapped, problem)
-            # print()
-            # print_v1(f"Plan for x_opt_swapped:\n{plan_from_xopt_swapped}", verbosity=self._cfg.verbosity)
-            # print()
-            # print("position errors (mm):", plan_from_xopt_swapped.positional_errors_mm)
-            # print("target path:    ", plan_from_xopt_swapped.target_path)
-            # print("q_path:         ", plan_from_xopt_swapped.q_path)
-            # print()
-            # print()
+            plan_from_xopt_swapped = plan_from_qpath(x_opt_swapped, problem, constraints)
             if plan_from_xopt_swapped.is_valid:
                 print_v2(
-                    f"Valid trajectory found by swapping initial_configuration and x_opt[0], returning",
+                    "Valid trajectory found by swapping initial_configuration and x_opt[0], returning",
                     verbosity=self._cfg.verbosity,
                 )
                 return return_(x_opt_swapped)
 
             print_v2(
-                f"Invalid trajectory found when swapping initial_configuration and x_opt[0], returning original"
-                f" trajectory",
+                "Invalid trajectory found when swapping initial_configuration and x_opt[0], returning original trajectory",
                 verbosity=self._cfg.verbosity,
             )
             return return_(x_opt)
 
         # Optionally rerun if optimization failed
         if self._cfg.do_rerun_if_optimization_fails and (rerun_data is None) and (not time_is_exceeded()):
-            print_v1(f"\nRerunning dp_search because optimization failed", verbosity=self._cfg.verbosity)
+            print_v1("\nRerunning dp_search because optimization failed", verbosity=self._cfg.verbosity)
             kwargs["rerun_data"] = q_data
             kwargs["t0"] = t0
-            return self.generate_plan(problem, **kwargs)
+            return self.generate_plan(problem, constraints, **kwargs)
 
         return return_(x_opt)

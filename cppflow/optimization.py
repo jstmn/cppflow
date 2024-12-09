@@ -9,7 +9,6 @@ from jrl.utils import safe_mkdir
 from cppflow.visualization import plot_optimized_trajectory
 from cppflow.utils import make_text_green_or_red
 from cppflow.problem import Problem
-from cppflow.plan import write_qpath_to_results_df
 from cppflow.evaluation_utils import angular_changes
 from cppflow.config import SELF_COLLISIONS_IGNORED, ENV_COLLISIONS_IGNORED
 
@@ -20,12 +19,14 @@ from cppflow.optimization_utils import (
     OptimizationParameters,
     LmResidualFns,
 )
+from cppflow.data_types import Constraints
 from cppflow.lm_hyper_parameters import ALT_LOSS_V2_1_POSE, ALT_LOSS_V2_1_DIFF
 
 
 @dataclass
 class OptimizationProblem:
     problem: Problem
+    constraints: Constraints
     seed: torch.Tensor
     target_path: torch.Tensor
     verbosity: int
@@ -193,6 +194,7 @@ def run_lm_alternating_loss(
             f.write(f"<empty>")
         plot_optimized_trajectory(
             opt_problem.problem,
+            opt_problem.constraints,
             opt_problem.seed,
             opt_state.x,
             show=False,
@@ -262,7 +264,7 @@ def run_lm_alternating_loss(
         # update results_df
         if results_df is not None:
             t0i = time()
-            write_qpath_to_results_df(results_df, opt_state.x.clone(), opt_problem.problem)  # ~0.07943 sec
+            opt_problem.problem.write_qpath_to_results_df(results_df, opt_state.x.clone())  # ~0.07943 sec
             t0 += time() - t0i
 
         # Analyze new x
@@ -299,6 +301,7 @@ def run_lm_alternating_loss(
         if save_images:
             plot_optimized_trajectory(
                 opt_problem.problem,
+                opt_problem.constraints,
                 opt_problem.seed,
                 opt_state.x,
                 show=False,
@@ -314,7 +317,14 @@ def run_lm_alternating_loss(
             x_sol,
             _,
             (pose_pos_valid, pose_rot_valid, mjac_rev_valid, mjac_pris_valid, is_a_self_collision, is_a_env_collision),
-        ) = x_is_valid(opt_problem.problem, opt_problem.target_path, opt_state.x, parallel_count=1, verbosity=verbosity)
+        ) = x_is_valid(
+            opt_problem.problem,
+            opt_problem.constraints,
+            opt_problem.target_path,
+            opt_state.x,
+            parallel_count=1,
+            verbosity=verbosity,
+        )
         if x_sol is not None:
             last_valid_idx = i
             last_valid = opt_state.x.clone()
@@ -358,6 +368,7 @@ def run_lm_alternating_loss(
 
 def run_lm_optimization(
     problem: Problem,
+    constraints: Constraints,
     x_seed: torch.Tensor,
     tmax_sec: float,
     max_n_steps: int,
@@ -387,7 +398,9 @@ def run_lm_optimization(
     assert x_seed.shape[1] == problem.robot.ndof
     assert isinstance(max_n_steps, int), f"error: max_n_steps must be int, is {type(max_n_steps)}"
 
-    opt_problem = OptimizationProblem(problem, x_seed, stacked_target_path, verbosity, parallel_count, results_df)
+    opt_problem = OptimizationProblem(
+        problem, constraints, x_seed, stacked_target_path, verbosity, parallel_count, results_df
+    )
     opt_state = OptimizationState(x_seed.clone(), 0, time())
 
     # lm alternating loss

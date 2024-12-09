@@ -1,21 +1,18 @@
 from dataclasses import dataclass
+from typing import List, Tuple, Dict
+
+from dataclasses import dataclass
 from typing import List, Tuple, Dict, Optional
 from time import time
 
 import torch
 
-from cppflow.problem import Problem, problem_from_filename
 from cppflow.config import (
-    SUCCESS_THRESHOLD_translation_ERR_MAX_CM,
-    SUCCESS_THRESHOLD_rotation_ERR_MAX_DEG,
-    SUCCESS_THRESHOLD_mjac_DEG,
-    SUCCESS_THRESHOLD_mjac_CM,
-    ENV_COLLISIONS_IGNORED,
-    SELF_COLLISIONS_IGNORED,
+    DEFAULT_RERUN_MJAC_THRESHOLD_DEG,
+    DEFAULT_RERUN_MJAC_THRESHOLD_CM,
     SUCCESS_THRESHOLD_initial_q_norm_dist,
 )
-
-from cppflow.utils import make_text_green_or_red, to_torch
+from cppflow.utils import make_text_green_or_red
 from cppflow.evaluation_utils import (
     positional_errors,
     rotational_errors,
@@ -26,14 +23,69 @@ from cppflow.evaluation_utils import (
     calculate_per_timestep_mjac_deg,
     calculate_per_timestep_mjac_cm,
 )
+from cppflow.config import ENV_COLLISIONS_IGNORED, SELF_COLLISIONS_IGNORED
+from cppflow.evaluation_utils import positional_errors, rotational_errors
 from cppflow.collision_detection import self_colliding_configs_klampt, env_colliding_configs_klampt
+from cppflow.problem import Problem
 
 
-def write_qpath_to_results_df(results_df: Dict, qpath: torch.Tensor, problem: Problem):
-    tnow = time()
-    plan = plan_from_qpath(qpath, problem)
-    results_df["t0"] += time() - tnow
-    plan.append_to_results_df(results_df)
+@dataclass
+class TimingData:
+    total: float
+    ikflow: float
+    coll_checking: float
+    batch_opt: float
+    dp_search: float
+    optimizer: float
+
+    def __str__(self):
+        def cond(t):
+            if t < 1e-6:
+                return t
+            return f"{t:.5f}"
+
+        s = "TimingData {\n"
+        s += f"  total:         {cond(self.total)}\n"
+        s += f"  ikflow:        {cond(self.ikflow)}\n"
+        s += f"  coll_checking: {cond(self.coll_checking)}\n"
+        s += f"  batch_opt:     {cond(self.batch_opt)}\n"
+        s += f"  dp_search:     {cond(self.dp_search)}\n"
+        s += f"  optimizer:     {cond(self.optimizer)}\n"
+        s += "}"
+        return s
+
+
+@dataclass
+class Constraints:
+    max_allowed_position_error_cm: float
+    max_allowed_rotation_error_deg: float
+    max_allowed_mjac_deg: float
+    max_allowed_mjac_cm: float
+
+    @property
+    def max_allowed_position_error_m(self):
+        return self.max_allowed_position_error_cm / 100
+
+
+@dataclass
+class PlannerSettings:
+    k: int
+    tmax_sec: float
+    anytime_mode_enabled: bool
+    latent_distribution: str = "uniform"
+    latent_vector_scale: float = 2.0
+    run_dp_search: bool = True
+    do_rerun_if_optimization_fails: bool = False
+    do_rerun_if_large_dp_search_mjac: bool = False
+    rerun_mjac_threshold_deg: bool = DEFAULT_RERUN_MJAC_THRESHOLD_DEG
+    rerun_mjac_threshold_cm: bool = DEFAULT_RERUN_MJAC_THRESHOLD_CM
+    do_return_search_path_mjac: bool = False
+    return_only_1st_plan: bool = False
+    verbosity: int = 1
+
+    def __post_init__(self):
+        assert self.latent_distribution in {"uniform", "gaussian"}
+        assert self.latent_vector_scale > 0.0
 
 
 @dataclass
@@ -52,6 +104,8 @@ class Plan:
     positional_errors: torch.Tensor
     rotational_errors: torch.Tensor
     provided_initial_configuration: Optional[torch.Tensor]
+
+    constraints: Constraints
 
     def __post_init__(self):
         assert isinstance(self.q_path, torch.Tensor)
@@ -182,6 +236,10 @@ class Plan:
         iv = (
             not joint_limits_violated
             and errors_are_below_threshold(
+                self.constraints.max_allowed_position_error_cm,
+                self.constraints.max_allowed_rotation_error_deg,
+                self.constraints.max_allowed_mjac_deg,
+                self.constraints.max_allowed_mjac_cm,
                 self.positional_errors_cm,
                 self.rotational_errors_deg,
                 self.mjac_per_timestep_deg,
@@ -196,13 +254,13 @@ class Plan:
         return iv
 
     def __str__(self) -> str:
-        s = "<Plan>" + "\n"
+        s = "Plan {\n"
 
         # is valid
-        mjac_deg_valid = self.mjac_deg < SUCCESS_THRESHOLD_mjac_DEG
-        mjac_cm_valid = self.mjac_cm < SUCCESS_THRESHOLD_mjac_CM
-        max_t_error_valid = self.max_positional_error_cm < SUCCESS_THRESHOLD_translation_ERR_MAX_CM
-        max_R_error_valid = self.max_rotational_error_deg < SUCCESS_THRESHOLD_rotation_ERR_MAX_DEG
+        mjac_deg_valid = self.mjac_deg < self.constraints.max_allowed_mjac_deg
+        mjac_cm_valid = self.mjac_cm < self.constraints.max_allowed_mjac_cm
+        max_t_error_valid = self.max_positional_error_cm < self.constraints.max_allowed_position_error_cm
+        max_R_error_valid = self.max_rotational_error_deg < self.constraints.max_allowed_rotation_error_deg
         joint_limits_violated, joint_limit_violation_pct = joint_limits_exceeded(self.robot_joint_limits, self.q_path)
         self_coll_valid = self.self_colliding_per_ts.sum() == 0
         env_coll_valid = self.env_colliding_per_ts.sum() == 0
@@ -224,55 +282,54 @@ class Plan:
             f" {max_R_error_valid}\n  joint_limits_valid: {not joint_limits_violated}"
         )
         round_amt = 5
-        s += f"  is_valid:         {make_text_green_or_red(is_valid, is_valid)}\n"
+        s += f"  is_valid:         \t\t   {make_text_green_or_red(is_valid, is_valid)}\n"
         s += (
-            f"    mjac < {SUCCESS_THRESHOLD_mjac_DEG} deg:                   "
-            f"{make_text_green_or_red(mjac_deg_valid, mjac_deg_valid)}\n"
+            f"  mjac < {self.constraints.max_allowed_mjac_deg} deg:                 "
+            f" {make_text_green_or_red(mjac_deg_valid, mjac_deg_valid)}\n"
         )
         s += (
-            f"    mjac < {SUCCESS_THRESHOLD_mjac_CM} cm:                    "
-            f"{make_text_green_or_red(mjac_cm_valid, mjac_cm_valid)}\n"
+            f"  mjac < {self.constraints.max_allowed_mjac_cm} cm:                  "
+            f" {make_text_green_or_red(mjac_cm_valid, mjac_cm_valid)}\n"
         )
         s += (
-            f"    max positional error < {10*SUCCESS_THRESHOLD_translation_ERR_MAX_CM} mm:  "
-            f"{make_text_green_or_red(max_t_error_valid, max_t_error_valid)}\n"
+            f"  max positional error < {10*self.constraints.max_allowed_position_error_cm} mm:  "
+            f" {make_text_green_or_red(max_t_error_valid, max_t_error_valid)}\n"
         )
         s += (
-            f"    max rotational error < {SUCCESS_THRESHOLD_rotation_ERR_MAX_DEG} deg: "
-            f"{make_text_green_or_red(max_R_error_valid, max_R_error_valid)}\n"
+            f"  max rotational error < {self.constraints.max_allowed_rotation_error_deg} deg: "
+            f" {make_text_green_or_red(max_R_error_valid, max_R_error_valid)}\n"
         )
         s += (
-            "    joint limits in bounds:        "
-            f" {make_text_green_or_red(not joint_limits_violated, not joint_limits_violated)}\n"
+            "  joint limits in bounds:        "
+            f"  {make_text_green_or_red(not joint_limits_violated, not joint_limits_violated)}\n"
         )
-        s += f"    close-to-initial-configuration: {make_text_green_or_red(initial_q_valid, initial_q_valid)}\n"
+        s += f"  close-to-initial-configuration:  {make_text_green_or_red(initial_q_valid, initial_q_valid)}\n"
         if joint_limits_violated:
             for i, violation_pct in enumerate(joint_limit_violation_pct):
                 s += (
-                    f"      % of q_path[:, {i}] violating JL:"
-                    f" {make_text_green_or_red(violation_pct.item(), abs(violation_pct) < 1e-8)}\n"
+                    f"    % of q_path[:, {i}] violating JL:"
+                    f"  {make_text_green_or_red(violation_pct.item(), abs(violation_pct) < 1e-8)}\n"
                 )
         s += (
-            "    # self collisions:              "
-            f"{make_text_green_or_red(self.self_colliding_per_ts.sum().item(), self.self_colliding_per_ts.sum() == 0)}\n"
+            "  # self collisions:              "
+            f" {make_text_green_or_red(self.self_colliding_per_ts.sum().item(), self.self_colliding_per_ts.sum() == 0)}\n"
         )
         s += (
-            "    # env. collisions:              "
-            f"{make_text_green_or_red(self.env_colliding_per_ts.sum().item(), self.env_colliding_per_ts.sum() == 0)}\n"
+            "  # env. collisions:              "
+            f" {make_text_green_or_red(self.env_colliding_per_ts.sum().item(), self.env_colliding_per_ts.sum() == 0)}\n"
         )
-
-        # ---
-        s += "  ---\n"
-        s += f"                  mjac: {round(self.mjac_deg, round_amt)} deg\n"
-        s += f"                  mjac: {round(self.mjac_cm, round_amt)} cm\n"
-        s += f"  ave positional error: {round(self.mean_positional_error_mm, round_amt)} mm\n"
-        s += f"  max positional error: {round(self.max_positional_error_mm, round_amt)} mm\n"
-        s += f"  ave rotational error: {round(self.mean_rotational_error_deg, round_amt)} deg\n"
-        s += f"  max rotational error: {round(self.max_rotational_error_deg, round_amt)} deg\n"
-        s += f"   q_initial norm dist: {round(self.initial_q_norm_dist, round_amt)}\n"
-        s += "  ---\n"
-        s += f"       path length rad: {round(self.path_length_rad, round_amt)}\n"
-        s += f"         path length m: {round(self.path_length_m, round_amt)}\n"
+        s += "  .\n"  # sep
+        s += f"  mjac:                  {round(self.mjac_deg, round_amt)} deg\n"
+        s += f"  mjac:                  {round(self.mjac_cm, round_amt)} cm\n"
+        s += f"  ave positional error:  {round(self.mean_positional_error_mm, round_amt)} mm\n"
+        s += f"  max positional error:  {round(self.max_positional_error_mm, round_amt)} mm\n"
+        s += f"  ave rotational error:  {round(self.mean_rotational_error_deg, round_amt)} deg\n"
+        s += f"  max rotational error:  {round(self.max_rotational_error_deg, round_amt)} deg\n"
+        s += f"  q_initial norm dist:   {round(self.initial_q_norm_dist, round_amt)}\n"
+        s += "  .\n"  # sep
+        s += f"  trajectory length:     {round(self.path_length_rad, round_amt)} rad\n"
+        s += f"  trajectory length:     {round(self.path_length_m, round_amt)} m\n"
+        s += "}"
         return s
 
 
@@ -293,7 +350,16 @@ class PlanNp:
         return item
 
 
-def plan_from_qpath(qpath: torch.Tensor, problem: Problem, do_replace_with_initial_q_if_valid: bool = False) -> Plan:
+@dataclass
+class PlannerResult:
+    plan: Plan
+    timing: TimingData
+    other_plans: List[Plan]
+    other_plans_names: List[str]
+    debug_info: dict
+
+
+def plan_from_qpath(qpath: torch.Tensor, problem: Problem, constraints: Constraints) -> Plan:
     """Converts a qpath to a plan.
 
     Note: mean runtime is 0.08366363048553467. Don't call this when timed
@@ -324,19 +390,5 @@ def plan_from_qpath(qpath: torch.Tensor, problem: Problem, do_replace_with_initi
         positional_errors=positional_errors(traced_path, problem.target_path),
         rotational_errors=rotational_errors(traced_path, problem.target_path),
         provided_initial_configuration=problem.initial_configuration,
+        constraints=constraints,
     )
-
-
-""" python cppflow/plan.py
-"""
-
-if __name__ == "__main__":
-    problem = problem_from_filename("fetch__square")
-    qpath = to_torch(problem.robot.sample_joint_angles(problem.n_timesteps))
-    ts = []
-    for _ in range(10):
-        t0 = time()
-        plan_from_qpath(qpath, problem)
-        ts.append(time() - t0)
-    print("total time for 10 runs:", sum(ts))
-    print("          mean runtime:", sum(ts) / len(ts))

@@ -17,16 +17,18 @@ from jrl.robots import Panda
 def _get_initial_configuration(robot: Robot, target_pose: Pose):
     warnings.warn("No collision checking is performed against obstacles in the scene to find an initial configuration.")
     for _ in range(25):
-        target_pose_np = np.array([
-            target_pose.position.x,
-            target_pose.position.y,
-            target_pose.position.z,
-            target_pose.orientation.w,
-            target_pose.orientation.x,
-            target_pose.orientation.y,
-            target_pose.orientation.z,
-        ])
-        initial_configuration = robot.inverse_kinematics_klampt(target_pose_np)[0]
+        target_pose_np = np.array(
+            [
+                target_pose.position.x,
+                target_pose.position.y,
+                target_pose.position.z,
+                target_pose.orientation.w,
+                target_pose.orientation.x,
+                target_pose.orientation.y,
+                target_pose.orientation.z,
+            ]
+        )
+        initial_configuration = robot.inverse_kinematics_klampt(target_pose_np, positional_tolerance=5e-5)[0]
         if not robot.config_self_collides(initial_configuration):
             return initial_configuration
     raise RuntimeError("Could not find collision free initial configuration")
@@ -89,24 +91,31 @@ class CppFlowQueryClient(Node):
         request.jrl_robot_name = "panda"
         request.verbosity = 1
         request.max_planning_time_sec = 3.0
+        request.anytime_mode_enabled = False
+        request.max_allowed_position_error_cm = 0.1
+        request.max_allowed_rotation_error_deg = 1.0
+        request.max_allowed_mjac_deg = 2.5
+        request.max_allowed_mjac_cm = 0.5
 
         # Create an example CppFlowProblem with waypoints
         # This is the beginning of the panda__1cube problem
         xyz_offset = np.array([0, 0.5421984559194368, 0.7885155964931997])
         # x, y, z, qw, x, y, z
-        target_path = np.array([
-            [0.45, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-            [0.44547737, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-            [0.44095477, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-            [0.43643215, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-            [0.43190953, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-            [0.4273869, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-            [0.42286432, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-            [0.4183417, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-            [0.41381907, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-            [0.40929648, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-            [0.40477386, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-        ])
+        target_path = np.array(
+            [
+                [0.45, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+                [0.44547737, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+                [0.44095477, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+                [0.43643215, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+                [0.43190953, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+                [0.4273869, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+                [0.42286432, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+                [0.4183417, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+                [0.41381907, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+                [0.40929648, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+                [0.40477386, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+            ]
+        )
 
         problem = CppFlowProblem()
         problem.waypoints = []

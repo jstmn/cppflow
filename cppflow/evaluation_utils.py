@@ -6,13 +6,7 @@ from jrl.math_utils import geodesic_distance_between_quaternions
 import numpy as np
 import torch
 
-from cppflow.config import (
-    SUCCESS_THRESHOLD_translation_ERR_MAX_CM,
-    SUCCESS_THRESHOLD_rotation_ERR_MAX_DEG,
-    SUCCESS_THRESHOLD_mjac_DEG,
-    SUCCESS_THRESHOLD_mjac_CM,
-    DEVICE,
-)
+from cppflow.config import DEVICE
 
 
 # =================================
@@ -34,42 +28,45 @@ def joint_limits_exceeded(robot_joint_limits: List[Tuple[float, float]], qs: np.
 
 
 def errors_are_below_threshold(
+    max_allowed_position_error_cm: float,
+    max_allowed_rotation_error_deg: float,
+    max_allowed_mjac_deg: float,
+    max_allowed_mjac_cm: float,
     error_t_cm: torch.Tensor,
     error_R_deg: torch.Tensor,
     qdeltas_revolute_deg: torch.Tensor,
     qdeltas_prismatic_cm: torch.Tensor,
-    mjac_threshold_deg: float = SUCCESS_THRESHOLD_mjac_DEG,
     verbosity: int = 0,
 ) -> bool:
     """Check whether the given errors are below the set success thresholds."""
-    pose_pos_valid = (error_t_cm.max() < SUCCESS_THRESHOLD_translation_ERR_MAX_CM).item()
-    pose_rot_valid = (error_R_deg.max() < SUCCESS_THRESHOLD_rotation_ERR_MAX_DEG).item()
+    pose_pos_valid = (error_t_cm.max() < max_allowed_position_error_cm).item()
+    pose_rot_valid = (error_R_deg.max() < max_allowed_rotation_error_deg).item()
     if verbosity > 0 and not pose_pos_valid:
         print(
             "errors_are_below_threshold() | pose-position is invalid (error_t_cm.max() <"
-            f" SUCCESS_THRESHOLD_translation_ERR_MAX_CM): {error_t_cm.max()} <"
-            f" {SUCCESS_THRESHOLD_translation_ERR_MAX_CM}"
+            f" max_allowed_position_error_cm): {error_t_cm.max()} <"
+            f" {max_allowed_position_error_cm}"
         )
     if verbosity > 0 and not pose_rot_valid:
         print(
             "errors_are_below_threshold() | pose-rotation is invalid (error_R_deg.max() <"
-            f" SUCCESS_THRESHOLD_rotation_ERR_MAX_DEG): {error_R_deg.max()} < {SUCCESS_THRESHOLD_rotation_ERR_MAX_DEG}"
+            f" max_allowed_rotation_error_deg): {error_R_deg.max()} < {max_allowed_rotation_error_deg}"
         )
 
-    mjac_rev_valid = qdeltas_revolute_deg.abs().max() < mjac_threshold_deg
+    mjac_rev_valid = qdeltas_revolute_deg.abs().max() < max_allowed_mjac_deg
     mjac_pris_valid = (
-        qdeltas_prismatic_cm.abs().max() < SUCCESS_THRESHOLD_mjac_CM if qdeltas_prismatic_cm.numel() > 0 else True
+        qdeltas_prismatic_cm.abs().max() < max_allowed_mjac_deg if qdeltas_prismatic_cm.numel() > 0 else True
     )
     if verbosity > 0:
         if not mjac_rev_valid:
             print(
                 f"errors_are_below_threshold() | mjac_rev is invalid: {qdeltas_revolute_deg.abs().max():.3f} >"
-                f" {mjac_threshold_deg:.3f}"
+                f" {max_allowed_mjac_deg:.3f}"
             )
         if not mjac_pris_valid:
             print(
                 f"errors_are_below_threshold() | mjac_pris is invalid: {qdeltas_prismatic_cm.abs().max():.3f} >"
-                f" {SUCCESS_THRESHOLD_mjac_CM:.3f}"
+                f" {max_allowed_mjac_deg:.3f}"
             )
     return pose_pos_valid and pose_rot_valid and mjac_rev_valid and mjac_pris_valid, (
         pose_pos_valid,
@@ -100,6 +97,13 @@ def calculate_per_timestep_mjac_cm(x: torch.Tensor) -> torch.Tensor:
 
 def prismatic_changes(x: torch.Tensor) -> torch.Tensor:
     return x[1:] - x[0:-1]
+
+
+def get_mjacs(robot: Robot, qpath: torch.Tensor):
+    qps_revolute, qps_prismatic = robot.split_configs_to_revolute_and_prismatic(qpath)
+    if qps_prismatic.numel() > 0:
+        return calculate_mjac_deg(qps_revolute), calculate_per_timestep_mjac_cm(qps_prismatic).abs().max().item()
+    return calculate_mjac_deg(qps_revolute), 0.0
 
 
 # ======================

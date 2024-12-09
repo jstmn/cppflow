@@ -6,7 +6,7 @@ from jrl.robots import Fetch
 
 from cppflow.search import joint_limit_almost_violations_3d
 from cppflow.problem import problem_from_filename
-from cppflow.planners import PlannerSearcher
+from cppflow.data_types import PlannerSearcher
 from cppflow.utils import set_seed
 
 set_seed()

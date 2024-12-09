@@ -5,14 +5,12 @@ import random
 from time import time
 import colorsys
 
-from jrl.robot import Robot
 import matplotlib.pyplot as plt
 import pkg_resources
 import torch
 import numpy as np
 
-from cppflow.evaluation_utils import calculate_mjac_deg, calculate_per_timestep_mjac_cm
-from cppflow.config import DEFAULT_TORCH_DTYPE, DEVICE
+from cppflow.config import DEVICE, DEFAULT_TORCH_DTYPE
 
 
 def print_v1(s, verbosity=0, *args, **kwargs):
@@ -76,13 +74,6 @@ def _plot_env_collisions(env_collision_violations: torch.Tensor):
     plt.grid(True, which="both", axis="both")
     plt.savefig("debug__env_collision_violations.png", bbox_inches="tight")
     plt.close()
-
-
-def _get_mjacs(robot: Robot, qpath: torch.Tensor):
-    qps_revolute, qps_prismatic = robot.split_configs_to_revolute_and_prismatic(qpath)
-    if qps_prismatic.numel() > 0:
-        return calculate_mjac_deg(qps_revolute), calculate_per_timestep_mjac_cm(qps_prismatic).abs().max().item()
-    return calculate_mjac_deg(qps_revolute), 0.0
 
 
 TORM_TL_RESULTS = {

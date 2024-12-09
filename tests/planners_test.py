@@ -6,10 +6,10 @@ from jrl.robot import Robot
 from jrl.robots import Panda
 
 from cppflow.evaluation_utils import angular_changes, prismatic_changes
-from cppflow.planners import Planner
+from cppflow.data_types import Planner
 from cppflow.utils import set_seed, to_torch
 from cppflow import config
-from cppflow.planners import PlannerSearcher, PlannerSettings, CppFlowPlanner
+from cppflow.data_types import PlannerSearcher, PlannerSettings, CppFlowPlanner
 from cppflow.problem import problem_from_filename, Problem
 
 set_seed()
@@ -280,19 +280,21 @@ class PlannerTest(unittest.TestCase):
 
         # Create a problem. This is the beginning of the panda__1cube problem
         xyz_offset = np.array([0, 0.5421984559194368, 0.7885155964931997])
-        target_path = np.array([
-            [0.45, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],  # x, y, z, qw, x, y, z
-            [0.44547737, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-            [0.44095477, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-            [0.43643215, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-            [0.43190953, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-            [0.4273869, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-            [0.42286432, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-            [0.4183417, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-            [0.41381907, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-            [0.40929648, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-            [0.40477386, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
-        ])
+        target_path = np.array(
+            [
+                [0.45, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],  # x, y, z, qw, x, y, z
+                [0.44547737, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+                [0.44095477, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+                [0.43643215, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+                [0.43190953, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+                [0.4273869, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+                [0.42286432, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+                [0.4183417, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+                [0.41381907, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+                [0.40929648, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+                [0.40477386, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+            ]
+        )
         target_path[:, 0:3] += xyz_offset
         # q0 = torch.tensor(
         #     [1.267967, 0.711829, -0.811080, -0.810924, -2.637594, 1.767759, 0.083284],

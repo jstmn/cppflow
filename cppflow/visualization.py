@@ -11,7 +11,7 @@ from jrl.config import PT_NP_TYPE
 import torch
 
 from cppflow.evaluation_utils import angular_changes
-from cppflow.plan import Plan, PlanNp, plan_from_qpath
+from cppflow.data_types import Plan, PlanNp, plan_from_qpath, Constraints
 from cppflow.problem import Problem
 from cppflow.collision_detection import (
     env_colliding_links_klampt,
@@ -19,12 +19,6 @@ from cppflow.collision_detection import (
     env_colliding_configs_klampt,
 )
 from cppflow.utils import to_numpy, to_torch
-from cppflow.config import (
-    SUCCESS_THRESHOLD_mjac_DEG,
-    SUCCESS_THRESHOLD_mjac_CM,
-    SUCCESS_THRESHOLD_translation_ERR_MAX_MM,
-    SUCCESS_THRESHOLD_rotation_ERR_MAX_DEG,
-)
 
 PI = np.pi
 
@@ -41,6 +35,7 @@ def delay(t: float):
 # TODO: Consider plotting qpaths from midway through the optimization
 def plot_optimized_trajectory(
     problem: Problem,
+    constraints: Constraints,
     qpath_0: PT_NP_TYPE,
     qpath_optimized: PT_NP_TYPE,
     xs: List[torch.Tensor] = [],
@@ -56,8 +51,8 @@ def plot_optimized_trajectory(
     n = qpath_0.shape[0]
     assert len(xs) == 0, "xs is unimplemented"
     target_path = to_numpy(problem.target_path)
-    plan_0: Plan = PlanNp(plan_from_qpath(qpath_0, problem))
-    plan_f: Plan = PlanNp(plan_from_qpath(qpath_optimized, problem))
+    plan_0: Plan = PlanNp(plan_from_qpath(qpath_0, problem, constraints))
+    plan_f: Plan = PlanNp(plan_from_qpath(qpath_optimized, problem, constraints))
     robot = problem.robot
     if (qpath_0 - qpath_optimized).abs().max() < 1e-8:
         print("warning: qpath_0 & qpath_optimized are the same")
@@ -236,7 +231,7 @@ def plot_optimized_trajectory(
     ax.plot(idxs, plan_f.rotational_errors_deg.max() * np.ones(len(idxs)), color="black", alpha=0.5, linestyle="--")
     ax.plot(
         idxs,
-        SUCCESS_THRESHOLD_rotation_ERR_MAX_DEG * np.ones(len(idxs)),
+        constraints.max_allowed_rotation_error_deg * np.ones(len(idxs)),
         color="green",
         alpha=0.5,
         linestyle="--",
@@ -244,7 +239,7 @@ def plot_optimized_trajectory(
     )
     ax.legend(loc="upper right")
     if max_plot_ys[0] is None:
-        ax.set_ylim(0, max(plan_f.rotational_errors_deg.max(), SUCCESS_THRESHOLD_rotation_ERR_MAX_DEG) * 1.1)
+        ax.set_ylim(0, max(plan_f.rotational_errors_deg.max(), constraints.max_allowed_rotation_error_deg) * 1.1)
     else:
         ax.set_ylim(0, max_plot_ys[1])
 
@@ -253,7 +248,7 @@ def plot_optimized_trajectory(
     # ax.set_yscale("log")
     ax.plot(
         idxs,
-        SUCCESS_THRESHOLD_mjac_DEG * np.ones(len(idxs)),
+        constraints.max_allowed_mjac_deg * np.ones(len(idxs)),
         label="max allowed",
         alpha=0.5,
         linestyle="--",
@@ -271,13 +266,13 @@ def plot_optimized_trajectory(
         color="black",
     )
     ax.set_ylim(0, None)
-    # ax.set_ylim(0, max(plan_f.mjac_per_timestep_deg.max(), SUCCESS_THRESHOLD_mjac_DEG) * 1.1)
+    # ax.set_ylim(0, max(plan_f.mjac_per_timestep_deg.max(), constraints.max_allowed_mjac_deg) * 1.1)
 
     # Maximum joint angle change - prismatic
     ax = axs[2, 1]
     ax.plot(
         idxs,
-        SUCCESS_THRESHOLD_mjac_CM * np.ones(len(idxs)),
+        constraints.max_allowed_mjac_cm * np.ones(len(idxs)),
         label="max allowed - prismatic",
         alpha=0.5,
         linestyle="--",
@@ -295,7 +290,7 @@ def plot_optimized_trajectory(
     )
     ax.legend(loc="upper right")
     ax.set_ylim(0, None)
-    # ax.set_ylim(0, max(plan_f.mjac_per_timestep_cm.max(), SUCCESS_THRESHOLD_mjac_CM) * 1.1)
+    # ax.set_ylim(0, max(plan_f.mjac_per_timestep_cm.max(), constraints.max_allowed_mjac_cm) * 1.1)
 
     # Self-collision avoidance
     ax = axs[3, 0]
@@ -365,7 +360,7 @@ def plot_pose_error_distribution(
         plans = []
         for qpath_or_plan in qpath_or_plan_group:
             if isinstance(qpath_or_plan, (np.ndarray, torch.Tensor)):
-                plans.append(plan_from_qpath(to_torch(qpath_or_plan), problem))
+                plans.append(plan_from_qpath(to_torch(qpath_or_plan), problem, constraints))
             else:
                 plans.append(qpath_or_plan)
         plan_groups.append(plans)
@@ -373,7 +368,7 @@ def plot_pose_error_distribution(
     final_plans = []
     for qpath_or_plan in qpath_or_plans_optimized:
         if isinstance(qpath_or_plan, (np.ndarray, torch.Tensor)):
-            final_plans.append(plan_from_qpath(to_torch(qpath_or_plan), problem))
+            final_plans.append(plan_from_qpath(to_torch(qpath_or_plan), problem, constraints))
         else:
             final_plans.append(qpath_or_plan)
 
@@ -565,7 +560,7 @@ def plot_plan(
             linestyle=_OTHER_PLAN_LINE_STYLE,
         )
     ax.plot(
-        SUCCESS_THRESHOLD_rotation_ERR_MAX_DEG * np.ones(n),
+        constraints.max_allowed_rotation_error_deg * np.ones(n),
         color="red",
         linestyle="--",
         label="max. allowed error",
@@ -641,7 +636,7 @@ def plot_plan(
         )
     ax.plot(plan.mjac_per_timestep_deg, label="plan", color="red")
     ax.plot(
-        SUCCESS_THRESHOLD_mjac_DEG * np.ones(n - 1),
+        constraints.max_allowed_mjac_deg * np.ones(n - 1),
         color="red",
         linestyle="--",
         label="max. allowed revolute mjac",
@@ -649,7 +644,7 @@ def plot_plan(
     if are_prismatic_joints:
         ax.plot(plan.mjac_per_timestep_cm, label="plan - prismatic", color="black")
         ax.plot(
-            SUCCESS_THRESHOLD_mjac_CM * np.ones(n - 1),
+            constraints.max_allowed_mjac_cm * np.ones(n - 1),
             color="black",
             linestyle="--",
             label="max. allowed prismatic mjac",

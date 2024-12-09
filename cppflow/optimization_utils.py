@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from typing import Optional, Tuple, List
 from time import time
-import warnings
 
 import pandas as pd
 import torch
@@ -11,15 +10,7 @@ from jrl.robot import Robot
 
 from cppflow.utils import cm_to_m, make_text_green_or_red
 from cppflow.problem import Problem
-from cppflow.config import (
-    SUCCESS_THRESHOLD_translation_ERR_MAX_CM,
-    SUCCESS_THRESHOLD_rotation_ERR_MAX_DEG,
-    SUCCESS_THRESHOLD_mjac_DEG,
-    SUCCESS_THRESHOLD_mjac_CM,
-    ENV_COLLISIONS_IGNORED,
-    SELF_COLLISIONS_IGNORED,
-)
-from cppflow.plan import write_qpath_to_results_df
+from cppflow.config import ENV_COLLISIONS_IGNORED, SELF_COLLISIONS_IGNORED
 from cppflow.lm_hyper_parameters import OptimizationParameters
 from cppflow.evaluation_utils import (
     angular_changes,
@@ -32,9 +23,10 @@ from cppflow.collision_detection import (
     env_colliding_configs_klampt,
     env_colliding_configs_capsule,
 )
+from cppflow.data_types import Constraints
 
-_SUCCESS_THRESHOLD_translation_ERR_MAX_M = SUCCESS_THRESHOLD_translation_ERR_MAX_CM / 100
-_SUCCESS_THRESHOLD_rotation_ERR_MAX_DEG = np.deg2rad(SUCCESS_THRESHOLD_rotation_ERR_MAX_DEG)
+# max_allowed_position_error_m = constraints.max_allowed_position_error_cm / 100
+# _constraints.max_allowed_rotation_error_deg = np.deg2rad(constraints.max_allowed_rotation_error_deg)
 
 
 @dataclass
@@ -522,10 +514,10 @@ class LmResidualFns:
             t0 = time()
             if pms.pose_do_scale_down_satisfied:
                 pose_error_threshold_pos_m = (
-                    pms.pose_ignore_satisfied_threshold_scale * _SUCCESS_THRESHOLD_translation_ERR_MAX_M
+                    pms.pose_ignore_satisfied_threshold_scale * pms.constraints.max_allowed_position_error_m
                 )
                 pose_error_threshold_rot_rad = (
-                    pms.pose_ignore_satisfied_threshold_scale * _SUCCESS_THRESHOLD_rotation_ERR_MAX_DEG
+                    pms.pose_ignore_satisfied_threshold_scale * pms.constraints.max_allowed_rotation_error_deg
                 )
 
                 r_pose, J_pose, pose_invalid_row_idxs = LmResidualFns._scale_down_rows_from_r_J_pose_below_error(
@@ -569,9 +561,11 @@ class LmResidualFns:
             t0 = time()
             if pms.differencing_do_ignore_satisfied or pms.differencing_do_scale_satisfied:
                 mjac_threshold_rad = np.deg2rad(
-                    SUCCESS_THRESHOLD_mjac_DEG - pms.differencing_ignore_satisfied_margin_deg
+                    pms.constraints.max_allowed_mjac_deg - pms.differencing_ignore_satisfied_margin_deg
                 )
-                mjac_threshold_m = cm_to_m(SUCCESS_THRESHOLD_mjac_CM - pms.differencing_ignore_satisfied_margin_cm)
+                mjac_threshold_m = cm_to_m(
+                    pms.constraints.max_allowed_mjac_cm - pms.differencing_ignore_satisfied_margin_cm
+                )
 
             # Option 1: ignore satisfied diffs
             if pms.differencing_do_ignore_satisfied:
@@ -840,17 +834,9 @@ def clamp_to_joint_limits(robot: Robot, x: torch.Tensor, verbosity: int = 0) -> 
     return x
 
 
-def meta_objective_function(error_pos_max_cm: float, error_rot_max_deg: float, mjac: float) -> float:
-    raise NotImplementedError("add robot-robot, robot-env collision checks")
-    return (
-        max(error_pos_max_cm - SUCCESS_THRESHOLD_translation_ERR_MAX_CM, 0)
-        + max(error_rot_max_deg - SUCCESS_THRESHOLD_rotation_ERR_MAX_DEG, 0)
-        + max(mjac - SUCCESS_THRESHOLD_mjac_DEG, 0)
-    )
-
-
 def x_is_valid(
     problem: Problem,
+    constraints: Constraints,
     target_path_stacked: torch.Tensor,
     x: torch.Tensor,
     parallel_count: int,
@@ -887,6 +873,10 @@ def x_is_valid(
             f" {(x_i.shape[0]-1, problem.robot.ndof)}"
         )
         all_valid, (pose_pos_valid, pose_rot_valid, mjac_rev_valid, mjac_pris_valid) = errors_are_below_threshold(
+            constraints.max_allowed_position_error_cm,
+            constraints.max_allowed_rotation_error_deg,
+            constraints.max_allowed_mjac_deg,
+            constraints.max_allowed_mjac_cm,
             pos_error,
             rot_error,
             revolute_diffs_deg,
@@ -899,9 +889,6 @@ def x_is_valid(
         # TODO: It could be faster to do this in parallel with self_colliding_configs_capsule()
         if not SELF_COLLISIONS_IGNORED:
             self_colliding = self_colliding_configs_klampt(problem, x_i)
-            # assert (
-            #     not self_colliding.any()
-            # ), f"Found a self-colliding config. Use this as an example for tuning self-collision avoidance"
             is_a_self_collision = self_colliding.any()
             if is_a_self_collision:
                 continue
@@ -910,12 +897,6 @@ def x_is_valid(
         if not ENV_COLLISIONS_IGNORED:
             env_colliding = env_colliding_configs_klampt(problem, x_i)
             is_a_env_collision = env_colliding.any()
-            # assert (
-            #     not env_colliding.any()
-            # ), f"Found a env-colliding config. Use this as an example for tuning env-collision avoidance"
-            # if verbosity > 0:
-            #     env_colliding_caps = env_colliding_configs_capsule(problem, x_i)
-            #     print(f"{env_colliding.sum()} env collisions, {env_colliding_caps.sum()} env collisions (capsule)")
             if is_a_env_collision.any():
                 continue
 
@@ -931,7 +912,7 @@ def x_is_valid(
     if results_df is not None:
         best_idx = max_pos_errors.index(min(max_pos_errors))
         x_i = x[best_idx * n : (best_idx + 1) * n, :]
-        write_qpath_to_results_df(results_df, x_i, problem)
+        problem.write_qpath_to_results_df(results_df, x_i)
 
     if verbosity > 0:
         print("x_is_valid() |", make_text_green_or_red("x is invalid", False))

@@ -13,7 +13,7 @@ from cppflow.optimization import (
     levenberg_marquardt_full,
     levenberg_marquardt_only_pose,
 )
-from cppflow.planners import PlannerSearcher
+from cppflow.data_types import PlannerSearcher
 from cppflow.optimization_utils import LmResidualFns
 
 PI = torch.pi
@@ -183,7 +183,7 @@ class OptimizationTest(unittest.TestCase):
     #             device="cuda",
     #         ).abs()
     #     )
-    #     error = torch.maximum(qdeltas - SUCCESS_THRESHOLD_mjac_DEG, torch.zeros_like(qdeltas))
+    #     error = torch.maximum(qdeltas - constraints.max_allowed_mjac_deg, torch.zeros_like(qdeltas))
     #     expected = torch.pow(error, 2).mean().item()
     #     self.assertAlmostEqual(loss, expected, msg=f"test 1 failed", delta=0.001)
 
@@ -194,7 +194,7 @@ class OptimizationTest(unittest.TestCase):
     #             [
     #                 [0.0] * 7,
     #                 [1.0] * 7,
-    #                 [SUCCESS_THRESHOLD_mjac_DEG - 0.1] * 7,
+    #                 [constraints.max_allowed_mjac_deg - 0.1] * 7,
     #                 [1.0] * 7,
     #                 [0.0] * 7,
     #                 [-1.0] * 7,
@@ -208,8 +208,8 @@ class OptimizationTest(unittest.TestCase):
     #     loss = optimizer.loss_fn(qs, poses, -1, 0)[0].item()
 
     #     t_error_cm, R_error_deg = calculate_pose_error_cm_deg(problem.robot, qs, poses)
-    #     t_error_cm -= SUCCESS_THRESHOLD_translation_ERR_MAX_CM
-    #     R_error_deg -= SUCCESS_THRESHOLD_rotation_ERR_MAX_DEG
+    #     t_error_cm -= constraints.max_allowed_position_error_cm
+    #     R_error_deg -= constraints.max_allowed_rotation_error_deg
     #     expected = torch.pow(t_error_cm, 2).mean().item() + torch.pow(R_error_deg, 2).mean().item()
     #     self.assertAlmostEqual(loss, expected)
 

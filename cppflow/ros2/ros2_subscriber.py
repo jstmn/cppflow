@@ -13,22 +13,14 @@ from jrl.utils import to_torch
 
 from cppflow.problem import Problem
 from cppflow.ros2.ros2_utils import waypoints_to_se3_sequence, plan_to_ros_trajectory
-from cppflow.planners import PlannerSearcher, CppFlowPlanner, Planner, PlannerSettings
+from cppflow.planners import PlannerSearcher, CppFlowPlanner, Planner
+from cppflow.data_types import PlannerSettings, Constraints
 from cppflow.utils import set_seed
 from cppflow.collision_detection import qpaths_batched_self_collisions, qpaths_batched_env_collisions
 
 set_seed()
 
 SAVE_MESSAGES = True
-
-# visualization_msgs/MarkerArray obstacles
-# string base_frame
-# string end_effector_frame
-# string jrl_robot_name
-# ---
-# # response
-# bool succes
-# string error
 
 
 PLANNERS = {
@@ -131,16 +123,15 @@ class SubscriberNode(Node):
                 file.write(serialize_message(request))
             self.get_logger().info(f"Saved a CppFlowQuery request to '{save_filepath}'")
 
-        if len(request.problems) == 0:
-            return specify_malformed_query("No problems provided")
+        if len(request.problems) != 1:
+            return specify_malformed_query(
+                f"Only 1 planning problem per query currently supported ({len(request.problems)} problems provided)"
+            )
 
         if request.max_planning_time_sec < 1e-6:
             return specify_malformed_query(
                 f"Planning time is too short (`max_planning_time_sec`: {request.max_planning_time_sec})"
             )
-
-        if len(request.problems) > 1:
-            return specify_malformed_query("Only 1 planning problem allowed per query currently")
 
         if self.planner is None:
             return specify_malformed_query(
@@ -156,10 +147,15 @@ class SubscriberNode(Node):
             )
 
         settings = PLANNER_SETTINGS[PLANNER]
-        if settings.anytime_mode_enabled:
-            return specify_malformed_query("Anytime mode not supported by the ros2 interface")
         settings.tmax_sec = request.max_planning_time_sec
         settings.verbosity = request.verbosity
+        settings.anytime_mode_enabled = request.anytime_mode_enabled
+        constraints = Constraints(
+            max_allowed_position_error_cm=request.max_allowed_position_error_cm,
+            max_allowed_rotation_error_deg=request.max_allowed_rotation_error_deg,
+            max_allowed_mjac_deg=request.max_allowed_mjac_deg,
+            max_allowed_mjac_cm=request.max_allowed_mjac_cm,
+        )
         self.planner.set_settings(settings)
 
         # TODO: Add obstacles
@@ -183,7 +179,6 @@ class SubscriberNode(Node):
         except AssertionError as e:
             return specify_malformed_query(f"Creating 'Problem' dataclass failed: {e}")
 
-
         # Check if initial configuration is valid
         if q0 is not None:
             if qpaths_batched_env_collisions(problem, q0.view(1, 1, ndof)).item():
@@ -192,7 +187,7 @@ class SubscriberNode(Node):
                 return specify_malformed_query("Initial configuration is self-colliding")
 
         try:
-            plan = self.planner.generate_plan(problem).plan
+            planning_result = self.planner.generate_plan(problem, constraints)
         except (RuntimeError, AttributeError) as e:
             tb = traceback.extract_tb(e.__traceback__)[-1]
             filename = tb.filename
@@ -204,7 +199,9 @@ class SubscriberNode(Node):
             self.get_logger().info(f"Planning failed with exception: '{error_msg}'")
             return response
 
-        self.get_logger().info(f"plan: {plan}")
+        plan = planning_result.plan
+        self.get_logger().info(f"{planning_result.plan}")
+        self.get_logger().info(f"{planning_result.timing}")
 
         # Write output to 'response'
         response.trajectories = [plan_to_ros_trajectory(plan, self.robot)]
