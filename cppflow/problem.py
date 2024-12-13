@@ -121,30 +121,37 @@ class Problem:
         if max(norms) > 1.01 or min(norms) < 0.99:
             raise ValueError("quaternion(s) are not unit quaternion(s)")
         if self.initial_configuration is not None:
+            np.set_printoptions(precision=4, suppress=True)
+            torch.set_printoptions(precision=4, sci_mode=False)
             max_translation_mm = 0.1
             assert (
                 len(self.initial_configuration.shape) == 2
             ), f"'initial_configuration' should be [1, ndof], is {self.initial_configuration.shape}"
-            fk_error_q_initial = self.robot.forward_kinematics(self.initial_configuration)[0] - self.target_path[0]
-            fk_error_q_initial_klampt = (
-                self.robot.forward_kinematics_klampt(self.initial_configuration.cpu().numpy())
-                - self.target_path[0].cpu().numpy()[None, :]
+            fk_jrl = self.robot.forward_kinematics(self.initial_configuration)[0]
+            waypoint_0_np = self.target_path[0].cpu().numpy()
+            fk_error_jrl: torch.Tensor = fk_jrl - self.target_path[0]
+            fk_error_klampt: np.ndarray = (
+                self.robot.forward_kinematics_klampt(self.initial_configuration.cpu().numpy()) - waypoint_0_np[None, :]
             )[0]
             assert (
-                fk_error_q_initial[0:3].numel() == 3
-            ), f"Fk position error term should be shaped [3], is {fk_error_q_initial.shape}"
+                fk_error_jrl[0:3].numel() == 3
+            ), f"Fk position error term should be shaped [3], is {fk_error_jrl.shape}"
             assert (
-                fk_error_q_initial_klampt[0:3].size == 3
-            ), f"Fk position error term should be shaped [3], is {fk_error_q_initial_klampt.shape}"
-            pos_error_q_initial_mm = m_to_mm(fk_error_q_initial[0:3].norm().item())
-            pos_error_q_initial_klampt_mm = m_to_mm(np.linalg.norm(fk_error_q_initial_klampt[0:3]))
-            assert pos_error_q_initial_mm < max_translation_mm, (
-                f"Position error for `initial_configuration` is too large ({pos_error_q_initial_mm:.5f} >"
-                f" {max_translation_mm} mm)"
+                fk_error_klampt[0:3].size == 3
+            ), f"Fk position error term should be shaped [3], is {fk_error_klampt.shape}"
+            fk_error_pos_mm = m_to_mm(fk_error_jrl[0:3].norm().item())
+            fk_error_klampt_pos_mm = m_to_mm(np.linalg.norm(fk_error_klampt[0:3]))
+            assert fk_error_pos_mm < max_translation_mm, (
+                f"Position error for `initial_configuration` is too large ({fk_error_pos_mm:.5f} > {max_translation_mm} mm)"
+                f"\n    FK_jrl(q_initial) = t({fk_jrl[0:3].cpu().numpy()}), quat({fk_jrl[3:7].cpu().numpy()})"
+                f"\n    waypoint[0] = t({waypoint_0_np[0:3]}), quat({waypoint_0_np[3:7]})"
+                f"\n    delta(FK(q_initial) - waypoint[0]) = t({fk_error_jrl.cpu().numpy()[0:3]}), quat({fk_error_jrl.cpu().numpy()[3:7]})"
             )
-            assert pos_error_q_initial_klampt_mm < max_translation_mm, (
-                f"Position error for `initial_configuration` is too large ({pos_error_q_initial_klampt_mm:.5f} >"
-                f" {max_translation_mm} mm)"
+            assert fk_error_klampt_pos_mm < max_translation_mm, (
+                f"Position error for `initial_configuration` is too large ({fk_error_klampt_pos_mm:.5f} >"
+                f" {max_translation_mm} mm).\n    FK_klampt(q_initial) = t({fk_error_klampt[0:3]}), quat({fk_error_klampt[3:7]})"
+                f"\n    waypoint[0] = t({waypoint_0_np[0:3]}), quat({waypoint_0_np[3:7]})"
+                f"\n    delta(FK(q_initial) - waypoint[0]) = t({fk_error_klampt.cpu().numpy()[0:3]}), quat({fk_error_klampt.cpu().numpy()[3:7]})"
             )
 
 

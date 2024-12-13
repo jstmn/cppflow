@@ -282,7 +282,7 @@ class Plan:
             f" {max_R_error_valid}\n  joint_limits_valid: {not joint_limits_violated}"
         )
         round_amt = 5
-        s += f"  is_valid:         \t\t   {make_text_green_or_red(is_valid, is_valid)}\n"
+        s += f"  is_valid:         \t   {make_text_green_or_red(is_valid, is_valid)}\n"
         s += (
             f"  mjac < {self.constraints.max_allowed_mjac_deg} deg:                 "
             f" {make_text_green_or_red(mjac_deg_valid, mjac_deg_valid)}\n"

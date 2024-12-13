@@ -900,7 +900,7 @@ def x_is_valid(
             if is_a_env_collision.any():
                 continue
 
-        if verbosity > 0:
+        if verbosity > 1:
             print("x_is_valid() |", make_text_green_or_red("x is valid", True))
 
         return (
@@ -914,7 +914,7 @@ def x_is_valid(
         x_i = x[best_idx * n : (best_idx + 1) * n, :]
         problem.write_qpath_to_results_df(results_df, x_i)
 
-    if verbosity > 0:
+    if verbosity > 1:
         print("x_is_valid() |", make_text_green_or_red("x is invalid", False))
 
     return (
