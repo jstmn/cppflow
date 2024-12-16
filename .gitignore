@@ -22,3 +22,4 @@ notebooks/images/*/
 notebooks/reports/*/
 PLANNER_RESULTS*.md
 notebooks/*.csv
+thirdparty/curobo

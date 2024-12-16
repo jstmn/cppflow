@@ -18,7 +18,7 @@ line-length = 120
 
 [tool.poetry.dependencies]
 python = ">=3.8.0,<3.11"
-jrl = { git = "https://github.com/jstmn/jrl.git", branch = "master" }
+jrl = { git = "https://github.com/jstmn/jrl.git" }
 ikflow = { git = "https://github.com/jstmn/ikflow.git" }
 psutil = "5.9.8"
 
