@@ -11,8 +11,8 @@ import torch
 import pandas as pd
 
 from cppflow.planners import PlannerSearcher, CppFlowPlanner, Planner
-from cppflow.data_types import PlannerSettings, PlannerResult, TimingData, PlannerSettings, Constraints
-from cppflow.problem import problem_from_filename, get_all_problems, Problem
+from cppflow.data_types import PlannerSettings, PlannerResult, TimingData, PlannerSettings, Constraints, Problem
+from cppflow.data_type_utils import problem_from_filename, get_all_problems
 from cppflow.utils import set_seed, to_torch
 from cppflow.config import DEVICE, SELF_COLLISIONS_IGNORED, ENV_COLLISIONS_IGNORED, DEBUG_MODE_ENABLED
 from cppflow.visualization import visualize_plan, plot_plan
@@ -57,7 +57,7 @@ CONSTRAINTS = Constraints(
 
 
 def _eval_planner_on_problem(planner: Type[Planner], problem: Problem, planner_settings: PlannerSettings):
-    result = planner.generate_plan(problem, CONSTRAINTS, planner_settings)
+    result = planner.generate_plan(problem, planner_settings)
     print()
     print(result.plan)
     print()
@@ -293,7 +293,7 @@ def main(args):
     )
 
     if args.problem is not None:
-        problem = problem_from_filename(args.problem)
+        problem = problem_from_filename(args.problem, CONSTRAINTS)
         print(problem)
 
         if args.use_fixed_initial_configuration:
@@ -304,7 +304,7 @@ def main(args):
             planner_result = PlannerResult(plan, TimingData(0, 0, 0, 0, 0, 0), [], [], {})
         else:
             planner: Planner = PLANNERS[args.planner_name](planner_settings, problem.robot)
-            planner_result = planner.generate_plan(problem, CONSTRAINTS)
+            planner_result = planner.generate_plan(problem)
 
             # save results to disk
             # torch.save(planner_result.plan, f"pt_tensors/plan__{problem.full_name}__{planner.name}.pt")

@@ -62,7 +62,7 @@ class SearchTest(unittest.TestCase):
         problem = problem_from_filename("", filepath_override=problem_name)
         planner = PlannerSearcher(problem.robot)
         k = 20
-        result = planner.generate_plan(problem, run_batch_ik=False, k=k)
+        result = planner.generate_plan(problem, k=k)
         plan = result.plan
         other_plans = result.other_plans
         eps = np.deg2rad(1)

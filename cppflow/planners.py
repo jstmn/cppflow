@@ -18,7 +18,6 @@ from cppflow.utils import (
     _plot_env_collisions,
     make_text_green_or_red,
 )
-from cppflow.problem import Problem
 from cppflow.config import (
     DEBUG_MODE_ENABLED,
     DEVICE,
@@ -27,7 +26,8 @@ from cppflow.config import (
 )
 from cppflow.search import dp_search
 from cppflow.optimization import run_lm_optimization
-from cppflow.data_types import Constraints, TimingData, PlannerSettings, PlannerResult, plan_from_qpath
+from cppflow.data_types import Constraints, TimingData, PlannerSettings, PlannerResult, Problem
+from cppflow.data_type_utils import plan_from_qpath
 from cppflow.collision_detection import qpaths_batched_self_collisions, qpaths_batched_env_collisions
 from cppflow.evaluation_utils import get_mjacs
 
@@ -110,7 +110,7 @@ class Planner:
         return str(self.__class__.__name__)
 
     @abstractmethod
-    def generate_plan(self, problem: Problem, constraints: Constraints, **kwargs) -> PlannerResult:
+    def generate_plan(self, problem: Problem, **kwargs) -> PlannerResult:
         raise NotImplementedError()
 
     # Private methods
@@ -308,7 +308,7 @@ class PlannerSearcher(Planner):
         super().__init__(settings, robot)
         assert self._cfg.run_dp_search
 
-    def generate_plan(self, problem: Problem, constraints: Constraints, **kwargs) -> PlannerResult:
+    def generate_plan(self, problem: Problem, **kwargs) -> PlannerResult:
         """Runs dp_search and returns"""
         assert problem.robot.name == self.robot.name
 
@@ -329,7 +329,7 @@ class PlannerSearcher(Planner):
 
         time_total = time() - t0
         return PlannerResult(
-            plan_from_qpath(qpath_search.detach(), problem, constraints),
+            plan_from_qpath(qpath_search.detach(), problem),
             TimingData(time_total, td.ikflow, td.coll_checking, td.batch_opt, td.dp_search, 0.0),
             [],
             [],
@@ -343,7 +343,7 @@ class CppFlowPlanner(Planner):
     def __init__(self, settings: PlannerSettings, robot: Robot):
         super().__init__(settings, robot)
 
-    def generate_plan(self, problem: Problem, constraints: Constraints, **kwargs) -> PlannerResult:
+    def generate_plan(self, problem: Problem, **kwargs) -> PlannerResult:
 
         t0 = time() if "t0" not in kwargs else kwargs["t0"]
 
@@ -356,7 +356,7 @@ class CppFlowPlanner(Planner):
 
         def return_(qpath):
             return PlannerResult(
-                plan_from_qpath(qpath, problem, constraints),
+                plan_from_qpath(qpath, problem),
                 TimingData(time() - t0, td.ikflow, td.coll_checking, td.batch_opt, td.dp_search, 0.0),
                 [],
                 [],
@@ -366,7 +366,7 @@ class CppFlowPlanner(Planner):
         # Optionally return only the 1st plan
         if self._cfg.return_only_1st_plan:
             return PlannerResult(
-                plan_from_qpath(search_qpath, problem, constraints), TimingData(time() - t0, 0, 0, 0, 0, 0), [], [], {}
+                plan_from_qpath(search_qpath, problem), TimingData(time() - t0, 0, 0, 0, 0, 0), [], [], {}
             )
 
         # rerun dp_search with larger k if mjac is too high
@@ -384,7 +384,7 @@ class CppFlowPlanner(Planner):
                 print_v1(f"new mjac after dp_search with larger k: {mjac_deg} deg,  cm", verbosity=self._cfg.verbosity)
 
         print_v2("\ndp_search path:", verbosity=self._cfg.verbosity)
-        print_v2(str(plan_from_qpath(search_qpath, problem, constraints)), verbosity=self._cfg.verbosity)
+        print_v2(str(plan_from_qpath(search_qpath, problem)), verbosity=self._cfg.verbosity)
 
         # return if not anytime mode and search path is valid, or out of time
         if time_is_exceeded():
@@ -407,7 +407,6 @@ class CppFlowPlanner(Planner):
             if self._cfg.anytime_mode_enabled:
                 optimization_result = run_lm_optimization(
                     problem,
-                    constraints,
                     search_qpath,
                     max_n_steps=50,
                     tmax_sec=self._cfg.tmax_sec - (time() - t0),
@@ -419,7 +418,6 @@ class CppFlowPlanner(Planner):
             else:
                 optimization_result = run_lm_optimization(
                     problem,
-                    constraints,
                     search_qpath,
                     tmax_sec=self._cfg.tmax_sec - (time() - t0),
                     max_n_steps=100,
@@ -452,7 +450,7 @@ class CppFlowPlanner(Planner):
             )
             x_opt_swapped = torch.cat((problem.initial_configuration, x_opt[1:]), dim=0)
             assert torch.norm(problem.initial_configuration - x_opt_swapped[0]) < 1e-6
-            plan_from_xopt_swapped = plan_from_qpath(x_opt_swapped, problem, constraints)
+            plan_from_xopt_swapped = plan_from_qpath(x_opt_swapped, problem)
             if plan_from_xopt_swapped.is_valid:
                 print_v2(
                     "Valid trajectory found by swapping initial_configuration and x_opt[0], returning",
@@ -471,6 +469,6 @@ class CppFlowPlanner(Planner):
             print_v1("\nRerunning dp_search because optimization failed", verbosity=self._cfg.verbosity)
             kwargs["rerun_data"] = q_data
             kwargs["t0"] = t0
-            return self.generate_plan(problem, constraints, **kwargs)
+            return self.generate_plan(problem, **kwargs)
 
         return return_(x_opt)

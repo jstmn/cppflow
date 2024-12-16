@@ -9,7 +9,7 @@ from jrl.math_utils import quaternion_inverse, quaternion_product, quaternion_to
 from jrl.robot import Robot
 
 from cppflow.utils import cm_to_m, make_text_green_or_red
-from cppflow.problem import Problem
+from cppflow.data_types import Problem
 from cppflow.config import ENV_COLLISIONS_IGNORED, SELF_COLLISIONS_IGNORED
 from cppflow.lm_hyper_parameters import OptimizationParameters
 from cppflow.evaluation_utils import (

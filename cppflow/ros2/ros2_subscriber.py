@@ -11,7 +11,7 @@ from jrl.robot import Robot
 from jrl.robots import get_robot
 from jrl.utils import to_torch
 
-from cppflow.problem import Problem
+from cppflow.data_types import Problem
 from cppflow.ros2.ros2_utils import waypoints_to_se3_sequence, plan_to_ros_trajectory
 from cppflow.planners import PlannerSearcher, CppFlowPlanner, Planner
 from cppflow.data_types import PlannerSettings, Constraints
@@ -166,6 +166,7 @@ class SubscriberNode(Node):
         )
         try:
             problem = Problem(
+                constraints,
                 target_path=waypoints_to_se3_sequence(request_problem.waypoints),
                 initial_configuration=q0,
                 robot=self.robot,
@@ -187,7 +188,7 @@ class SubscriberNode(Node):
                 return specify_malformed_query("Initial configuration is self-colliding")
 
         try:
-            planning_result = self.planner.generate_plan(problem, constraints)
+            planning_result = self.planner.generate_plan(problem)
         except (RuntimeError, AttributeError) as e:
             tb = traceback.extract_tb(e.__traceback__)[-1]
             filename = tb.filename

@@ -1,21 +1,20 @@
 from dataclasses import dataclass
-from typing import List, Tuple, Dict
-
-from dataclasses import dataclass
 from typing import List, Tuple, Dict, Optional
 from time import time
 
+from jrl.robot import Robot
+from jrl.math_utils import quaternion_norm, geodesic_distance_between_quaternions
 import torch
+import numpy as np
+from klampt import RigidObjectModel
 
 from cppflow.config import (
     DEFAULT_RERUN_MJAC_THRESHOLD_DEG,
     DEFAULT_RERUN_MJAC_THRESHOLD_CM,
     SUCCESS_THRESHOLD_initial_q_norm_dist,
 )
-from cppflow.utils import make_text_green_or_red
+from cppflow.utils import make_text_green_or_red, cm_to_mm, m_to_mm
 from cppflow.evaluation_utils import (
-    positional_errors,
-    rotational_errors,
     angular_changes,
     prismatic_changes,
     joint_limits_exceeded,
@@ -23,10 +22,6 @@ from cppflow.evaluation_utils import (
     calculate_per_timestep_mjac_deg,
     calculate_per_timestep_mjac_cm,
 )
-from cppflow.config import ENV_COLLISIONS_IGNORED, SELF_COLLISIONS_IGNORED
-from cppflow.evaluation_utils import positional_errors, rotational_errors
-from cppflow.collision_detection import self_colliding_configs_klampt, env_colliding_configs_klampt
-from cppflow.problem import Problem
 
 
 @dataclass
@@ -359,36 +354,109 @@ class PlannerResult:
     debug_info: dict
 
 
-def plan_from_qpath(qpath: torch.Tensor, problem: Problem, constraints: Constraints) -> Plan:
-    """Converts a qpath to a plan.
+@dataclass
+class Problem:
+    constraints: Constraints
+    target_path: torch.Tensor
+    initial_configuration: Optional[torch.Tensor]
+    robot: Robot
+    name: str
+    full_name: str
+    obstacles: Optional[List]
+    obstacles_Tcuboids: Optional[List]
+    obstacles_cuboids: Optional[List]
+    obstacles_klampt: List[RigidObjectModel]
 
-    Note: mean runtime is 0.08366363048553467. Don't call this when timed
-    """
-    assert isinstance(qpath, torch.Tensor), f"qpath must be a torch.Tensor, got {type(qpath)}"
-    traced_path = problem.robot.forward_kinematics(qpath, out_device=qpath.device)
-    qpath_revolute, qpath_prismatic = problem.robot.split_configs_to_revolute_and_prismatic(qpath)
+    @property
+    def n_timesteps(self) -> int:
+        return self.target_path.shape[0]
 
-    # Use klampts collision checker here instead of jrl's capsule-capsule checking. klampt uses the collision
-    # geometry of the robot which is a tighter bound.
-    self_colliding = self_colliding_configs_klampt(problem, qpath)
-    if SELF_COLLISIONS_IGNORED:
-        self_colliding = torch.zeros_like(self_colliding)
+    @property
+    def fancy_name(self) -> str:
+        return f"{self.robot.formal_robot_name} - {self.name}"
 
-    env_colliding = env_colliding_configs_klampt(problem, qpath)
-    if ENV_COLLISIONS_IGNORED:
-        env_colliding = torch.zeros_like(env_colliding)
+    @property
+    def path_length_cumultive_positional_change_cm(self) -> float:
+        """Sum of the positional difference between consecutive poses of the target path"""
+        return float(torch.norm(self.target_path[1:, 0:3] - self.target_path[:-1, 0:3], dim=1).sum()) * 100.0
 
-    return Plan(
-        q_path=qpath,
-        q_path_revolute=qpath_revolute,
-        q_path_prismatic=qpath_prismatic,
-        pose_path=traced_path,
-        target_path=problem.target_path,
-        robot_joint_limits=problem.robot.actuated_joints_limits,
-        self_colliding_per_ts=self_colliding,
-        env_colliding_per_ts=env_colliding,
-        positional_errors=positional_errors(traced_path, problem.target_path),
-        rotational_errors=rotational_errors(traced_path, problem.target_path),
-        provided_initial_configuration=problem.initial_configuration,
-        constraints=constraints,
-    )
+    @property
+    def path_length_cumulative_rotational_change_deg(self) -> float:
+        """Sum of the geodesic distance between consecutive poses of the target path"""
+        q0 = self.target_path[0:-1, 3:7]
+        q1 = self.target_path[1:, 3:7]
+        # Copied from geodesic_distance_between_quaternions():
+        #   dot = torch.clip(torch.sum(q1 * q2, dim=1), -1, 1)
+        #   distance = 2 * torch.acos(torch.clamp(dot, -1 + acos_clamp_epsilon, 1 - acos_clamp_epsilon))
+        acos_clamp_epsilon = 1e-7
+        dot = torch.sum(q0 * q1, dim=1)
+        dot_is_1 = torch.logical_or(dot > 1 - acos_clamp_epsilon, dot < -1 + acos_clamp_epsilon)
+        imagined_error_per_elem = 2 * torch.acos(torch.tensor([1 - acos_clamp_epsilon], device=self.target_path.device))
+        total_imagined_error = imagined_error_per_elem * torch.sum(dot_is_1)
+        #
+        rotational_changes = geodesic_distance_between_quaternions(q0, q1)
+        return torch.rad2deg(rotational_changes.abs().sum() - total_imagined_error).item()
+
+    def write_qpath_to_results_df(self, results_df: Dict, qpath: torch.Tensor):
+        raise NotImplementedError("need to refactor to avoid circular dependencies from plan_from_qpath()")
+        tnow = time()
+        plan = plan_from_qpath(qpath, problem)
+        results_df["t0"] += time() - tnow
+        plan.append_to_results_df(results_df)
+
+    def __str__(self, prefix: str = "") -> str:
+        n = self.target_path.shape[0]
+        s = f"{prefix}<Problem>"
+        s += f"\n{prefix}  name:                        " + self.name
+        s += f"\n{prefix}  full_name:                   " + self.full_name
+        s += f"\n{prefix}  robot:                       " + str(self.robot)
+        s += f"\n{prefix}  target_path:                 " + str(self.target_path.shape)
+        s += (
+            f"\n{prefix}  path length (m):            "
+            f" {round(self.path_length_cumultive_positional_change_cm/100.0, 4)}"
+        )
+        s += f"\n{prefix}  path length (deg)            {round(self.path_length_cumulative_rotational_change_deg, 4)}"
+        s += f"\n{prefix}  number of waypoints:         {n}"
+        return s + "\n"
+
+    def __post_init__(self):
+        assert isinstance(self.robot, Robot), f"Error - self.robot is {type(self.robot)}, should be Robot type"
+        # Sanity check target poses
+        norms = quaternion_norm(self.target_path[:, 3:7])
+        if max(norms) > 1.01 or min(norms) < 0.99:
+            raise ValueError("quaternion(s) are not unit quaternion(s)")
+        if self.initial_configuration is not None:
+            np.set_printoptions(precision=5, suppress=True)
+            torch.set_printoptions(precision=5, sci_mode=False)
+            max_translation_mm = cm_to_mm(self.constraints.max_allowed_mjac_cm)
+            assert (
+                len(self.initial_configuration.shape) == 2
+            ), f"'initial_configuration' should be [1, ndof], is {self.initial_configuration.shape}"
+            fk_jrl = self.robot.forward_kinematics(self.initial_configuration)[0]
+            waypoint_0_np = self.target_path[0].cpu().numpy()
+            fk_error_jrl: torch.Tensor = fk_jrl - self.target_path[0]
+            fk_error_klampt: np.ndarray = (
+                self.robot.forward_kinematics_klampt(self.initial_configuration.cpu().numpy()) - waypoint_0_np[None, :]
+            )[0]
+            assert (
+                fk_error_jrl[0:3].numel() == 3
+            ), f"Fk position error term should be shaped [3], is {fk_error_jrl.shape}"
+            assert (
+                fk_error_klampt[0:3].size == 3
+            ), f"Fk position error term should be shaped [3], is {fk_error_klampt.shape}"
+
+            fk_error_pos_mm = m_to_mm(fk_error_jrl[0:3].norm().item())
+            fk_error_klampt_pos_mm = m_to_mm(np.linalg.norm(fk_error_klampt[0:3]))
+
+            assert fk_error_pos_mm < max_translation_mm, (
+                f"Position error for `initial_configuration` is too large ({fk_error_pos_mm:.5f} > {max_translation_mm} mm)"
+                f"\n    FK_jrl(q_initial) = t({fk_jrl[0:3].cpu().numpy()}), quat({fk_jrl[3:7].cpu().numpy()})"
+                f"\n    waypoint[0] = t({waypoint_0_np[0:3]}), quat({waypoint_0_np[3:7]})"
+                f"\n    delta(FK(q_initial) - waypoint[0]) = t({fk_error_jrl.cpu().numpy()[0:3]}), quat({fk_error_jrl.cpu().numpy()[3:7]})"
+            )
+            assert fk_error_klampt_pos_mm < max_translation_mm, (
+                f"Position error for `initial_configuration` is too large ({fk_error_klampt_pos_mm:.5f} > {max_translation_mm} mm)"
+                f"\n    FK_klampt(q_initial) = t({fk_error_klampt[0:3]}), quat({fk_error_klampt[3:7]})"
+                f"\n    waypoint[0] = t({waypoint_0_np[0:3]}), quat({waypoint_0_np[3:7]})"
+                f"\n    delta(FK(q_initial) - waypoint[0]) = t({fk_error_klampt.cpu().numpy()[0:3]}), quat({fk_error_klampt.cpu().numpy()[3:7]})"
+            )

@@ -8,7 +8,7 @@ from jrl.utils import safe_mkdir
 
 from cppflow.visualization import plot_optimized_trajectory
 from cppflow.utils import make_text_green_or_red
-from cppflow.problem import Problem
+from cppflow.data_types import Problem
 from cppflow.evaluation_utils import angular_changes
 from cppflow.config import SELF_COLLISIONS_IGNORED, ENV_COLLISIONS_IGNORED
 
@@ -191,10 +191,9 @@ def run_lm_alternating_loss(
         t0_str = str(time()).split(".")[0][-4:]
         safe_mkdir(f"images/{opt_problem.problem.full_name}")
         with open(f"images/{opt_problem.problem.full_name}/(LmAlternating, {t0_str})", "w") as f:
-            f.write(f"<empty>")
+            f.write("<empty>")
         plot_optimized_trajectory(
             opt_problem.problem,
-            opt_problem.constraints,
             opt_problem.seed,
             opt_state.x,
             show=False,
@@ -269,7 +268,7 @@ def run_lm_alternating_loss(
 
         # Analyze new x
         tl_new = calc_TL(opt_state.x)
-        printc(f"  tl:", tl_new)
+        printc(f"  tl: {tl_new}")
         if return_residuals:
             tl = tl_new
             tls.append(tl_new)
@@ -301,7 +300,6 @@ def run_lm_alternating_loss(
         if save_images:
             plot_optimized_trajectory(
                 opt_problem.problem,
-                opt_problem.constraints,
                 opt_problem.seed,
                 opt_state.x,
                 show=False,
@@ -332,9 +330,9 @@ def run_lm_alternating_loss(
             params_diff.virtual_configs = x_sol.clone()
             is_valids.append(i + 1)
             if converged:
-                printc(make_text_green_or_red(f"  x is valid and TL has converged, exiting", True))
+                printc(make_text_green_or_red("  x is valid and TL has converged, exiting", True))
                 break
-            printc(make_text_green_or_red(f"  x is valid, continuing", True))
+            printc(make_text_green_or_red("  x is valid, continuing", True))
 
         # return if found a valid solution and we have taken enough steps ('return_if_valid_after_n_steps')
         if time() - t0 > tmax_sec:
@@ -368,7 +366,6 @@ def run_lm_alternating_loss(
 
 def run_lm_optimization(
     problem: Problem,
-    constraints: Constraints,
     x_seed: torch.Tensor,
     tmax_sec: float,
     max_n_steps: int,
@@ -399,7 +396,7 @@ def run_lm_optimization(
     assert isinstance(max_n_steps, int), f"error: max_n_steps must be int, is {type(max_n_steps)}"
 
     opt_problem = OptimizationProblem(
-        problem, constraints, x_seed, stacked_target_path, verbosity, parallel_count, results_df
+        problem, problem.constraints, x_seed, stacked_target_path, verbosity, parallel_count, results_df
     )
     opt_state = OptimizationState(x_seed.clone(), 0, time())
 

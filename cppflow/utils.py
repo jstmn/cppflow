@@ -246,6 +246,10 @@ def m_to_mm(x):
     return x * 1000.0
 
 
+def cm_to_mm(x):
+    return x * 10.0
+
+
 def boolean_string(s):
     if isinstance(s, bool):
         return s

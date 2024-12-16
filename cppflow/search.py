@@ -6,7 +6,7 @@ import torch
 import matplotlib.pyplot as plt
 from jrl.robot import Robot
 
-from cppflow.problem import Problem
+from cppflow.data_types import Problem
 from cppflow.config import DEVICE
 from cppflow.utils import TimerContext, cm_to_m
 from cppflow.collision_detection import qpaths_batched_self_collisions, qpaths_batched_env_collisions

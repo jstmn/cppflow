@@ -2,7 +2,7 @@ from typing import List
 
 import torch
 
-from cppflow.problem import Problem
+from cppflow.data_types import Problem
 from cppflow.config import DEVICE
 
 
