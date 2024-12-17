@@ -459,7 +459,8 @@ class CppFlowPlanner(Planner):
                 return return_(x_opt_swapped)
 
             print_v2(
-                "Invalid trajectory found when swapping initial_configuration and x_opt[0], returning original trajectory",
+                "Invalid trajectory found when swapping initial_configuration and x_opt[0], returning original"
+                " trajectory",
                 verbosity=self._cfg.verbosity,
             )
             return return_(x_opt)

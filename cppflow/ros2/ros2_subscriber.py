@@ -217,7 +217,8 @@ class SubscriberNode(Node):
 
 """ Usage
 
-ros2 run cppflow ros2_subscriber
+ros2 run cppflow ros2_subscriber  # terminal 1
+ros2 run cppflow ros2_publisher   # terminal 2
 """
 
 
