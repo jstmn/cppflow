@@ -448,19 +448,15 @@ class Problem:
             fk_error_pos_mm = m_to_mm(fk_error_jrl[0:3].norm().item())
             fk_error_klampt_pos_mm = m_to_mm(np.linalg.norm(fk_error_klampt[0:3]))
 
-            if fk_error_pos_mm < max_translation_mm:
-                raise ValueError(
-                    f"Position error for `initial_configuration` is too large ({fk_error_pos_mm:.5f} >"
-                    f" {max_translation_mm} mm)\n    FK_jrl(q_initial) = t({fk_jrl[0:3].cpu().numpy()}),"
-                    f" quat({fk_jrl[3:7].cpu().numpy()})\n    waypoint[0] = t({waypoint_0_np[0:3]}),"
-                    f" quat({waypoint_0_np[3:7]})\n    delta(FK(q_initial) - waypoint[0]) ="
-                    f" t({fk_error_jrl.cpu().numpy()[0:3]}), quat({fk_error_jrl.cpu().numpy()[3:7]})"
-                )
-            if fk_error_klampt_pos_mm < max_translation_mm:
-                raise ValueError(
-                    f"Position error for `initial_configuration` is too large ({fk_error_klampt_pos_mm:.5f} >"
-                    f" {max_translation_mm} mm)\n    FK_klampt(q_initial) = t({fk_error_klampt[0:3]}),"
-                    f" quat({fk_error_klampt[3:7]})\n    waypoint[0] = t({waypoint_0_np[0:3]}),"
-                    f" quat({waypoint_0_np[3:7]})\n    delta(FK(q_initial) - waypoint[0]) ="
-                    f" t({fk_error_klampt.cpu().numpy()[0:3]}), quat({fk_error_klampt.cpu().numpy()[3:7]})"
-                )
+            assert fk_error_pos_mm < max_translation_mm, (
+                f"Position error for `initial_configuration` is too large ({fk_error_pos_mm:.5f} > {max_translation_mm} mm)"
+                f"\n    FK_jrl(q_initial) = t({fk_jrl[0:3].cpu().numpy()}), quat({fk_jrl[3:7].cpu().numpy()})"
+                f"\n    waypoint[0] = t({waypoint_0_np[0:3]}), quat({waypoint_0_np[3:7]})"
+                f"\n    delta(FK(q_initial) - waypoint[0]) = t({fk_error_jrl.cpu().numpy()[0:3]}), quat({fk_error_jrl.cpu().numpy()[3:7]})"
+            )
+            assert fk_error_klampt_pos_mm < max_translation_mm, (
+                f"Position error for `initial_configuration` is too large ({fk_error_klampt_pos_mm:.5f} > {max_translation_mm} mm)"
+                f"\n    FK_klampt(q_initial) = t({fk_error_klampt[0:3]}), quat({fk_error_klampt[3:7]})"
+                f"\n    waypoint[0] = t({waypoint_0_np[0:3]}), quat({waypoint_0_np[3:7]})"
+                f"\n    delta(FK(q_initial) - waypoint[0]) = t({fk_error_klampt.cpu().numpy()[0:3]}), quat({fk_error_klampt.cpu().numpy()[3:7]})"
+            )
