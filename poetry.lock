@@ -431,8 +431,8 @@ jrl = {git = "https://github.com/jstmn/jrl.git", rev = "e08a900c4ef77d75a54446c1
 [package.source]
 type = "git"
 url = "https://github.com/jstmn/ikflow.git"
-reference = "902051aa92fb8b6b1e3c5527564654a9ac9ca08e"
-resolved_reference = "902051aa92fb8b6b1e3c5527564654a9ac9ca08e"
+reference = "815a281141d6f6e2c16f0ffe69dccf6f12676050"
+resolved_reference = "815a281141d6f6e2c16f0ffe69dccf6f12676050"
 
 [[package]]
 name = "iniconfig"
@@ -2229,4 +2229,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8.0,<3.11"
-content-hash = "e38e826d98fb99c2720422d03b3a622b47e9d1013f6cf601357cac4c59ce6a43"
+content-hash = "d6499a014bb68e77af82e1f90dda8e6679b351d6a2798f575e28ccd693bf78cd"

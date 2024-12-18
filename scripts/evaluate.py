@@ -293,7 +293,7 @@ def main(args):
     )
 
     if args.problem is not None:
-        problem = problem_from_filename(args.problem, CONSTRAINTS)
+        problem = problem_from_filename(CONSTRAINTS, args.problem)
         print(problem)
 
         if args.use_fixed_initial_configuration:
