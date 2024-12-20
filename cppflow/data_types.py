@@ -277,7 +277,7 @@ class Plan:
             f" {max_R_error_valid}\n  joint_limits_valid: {not joint_limits_violated}"
         )
         round_amt = 5
-        s += f"  is_valid:         \t   {make_text_green_or_red(is_valid, is_valid)}\n"
+        s += f"  is_valid:         \t\t\t{make_text_green_or_red(is_valid, is_valid)}\n"
         s += (
             f"  mjac < {self.constraints.max_allowed_mjac_deg} deg:                 "
             f" {make_text_green_or_red(mjac_deg_valid, mjac_deg_valid)}\n"
@@ -428,7 +428,9 @@ class Problem:
         if self.initial_configuration is not None:
             np.set_printoptions(precision=5, suppress=True)
             torch.set_printoptions(precision=5, sci_mode=False)
-            max_translation_mm = cm_to_mm(self.constraints.max_allowed_mjac_cm)
+            # NOTE: We assume that the initial configuration maps to some pose at t=-1, so it's alright if its a bit far
+            # from pose[t=0]
+            max_translation_mm = 5*cm_to_mm(self.constraints.max_allowed_position_error_cm)
             assert (
                 len(self.initial_configuration.shape) == 2
             ), f"'initial_configuration' should be [1, ndof], is {self.initial_configuration.shape}"

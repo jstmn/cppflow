@@ -69,7 +69,7 @@ class SubscriberNode(Node):
         def specify_malformed_query(msg: str):
             response.success = False
             response.error = msg
-            self.get_logger().info(f"Returning response: {response}")
+            self.get_logger().info(f"Returning response to malformed query: {response}")
             return response
 
         # Get robot
@@ -108,13 +108,11 @@ class SubscriberNode(Node):
 
     def planning_query_callback(self, request, response):
         t0 = time()
-        self.get_logger().info(f"Received a CppFlowQuery message")
-        ndof = self.planner.robot.ndof
 
         def specify_malformed_query(msg: str):
             response.is_malformed_query = True
             response.malformed_query_error = msg
-            self.get_logger().info(f"Returning malformed query response: {response}")
+            self.get_logger().info(f"Returning response: {response} for malformed query")
             return response
 
         if SAVE_MESSAGES:
@@ -145,9 +143,10 @@ class SubscriberNode(Node):
             return specify_malformed_query(
                 f"At least 3 waypoints are required per problem (only {len(request_problem.waypoints)} provided)"
             )
-
+        
+        ndof = self.planner.robot.ndof
         settings = PLANNER_SETTINGS[PLANNER]
-        settings.tmax_sec = request.max_planning_time_sec
+        settings.tmax_sec = 0.9*request.max_planning_time_sec
         settings.verbosity = request.verbosity
         settings.anytime_mode_enabled = request.anytime_mode_enabled
         constraints = Constraints(
@@ -177,6 +176,10 @@ class SubscriberNode(Node):
                 obstacles_cuboids=[],
                 obstacles_klampt=[],
             )
+            self.get_logger().info("target-path cumulative positional-change, cm:        ", problem.path_length_cumultive_positional_change_cm)
+            self.get_logger().info("target-path cumulative rotational-change, deg:       ", problem.path_length_cumulative_rotational_change_deg)
+            self.get_logger().info("target-path mean positional change per waypoint, cm: ", problem.path_length_cumultive_positional_change_cm / problem.n_timesteps)
+            self.get_logger().info("target-path mean rotational change per waypoint, deg:", problem.path_length_cumulative_rotational_change_deg / problem.n_timesteps)
         except AssertionError as e:
             return specify_malformed_query(f"Creating 'Problem' dataclass failed: {e}")
 
@@ -200,11 +203,9 @@ class SubscriberNode(Node):
             self.get_logger().info(f"Planning failed with exception: '{error_msg}'")
             return response
 
-        plan = planning_result.plan
-        self.get_logger().info(f"{planning_result.plan}")
-        self.get_logger().info(f"{planning_result.timing}")
 
         # Write output to 'response'
+        plan = planning_result.plan
         response.trajectories = [plan_to_ros_trajectory(plan, self.robot)]
         response.success = [plan.is_valid]
         response.errors = [""]
@@ -212,6 +213,8 @@ class SubscriberNode(Node):
             f"Planning complete - returning {sum(response.success)} / {len(response.trajectories)} successful"
             f" trajectories ({time() - t0:.3f} seconds)"
         )
+        self.get_logger().info(f"{planning_result.plan}")
+        self.get_logger().info(f"{planning_result.timing}")
         return response
 
 

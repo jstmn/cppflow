@@ -383,9 +383,6 @@ class CppFlowPlanner(Planner):
                 mjac_deg, mjac_cm = get_mjacs(problem.robot, search_qpath)
                 print_v1(f"new mjac after dp_search with larger k: {mjac_deg} deg,  cm", verbosity=self._cfg.verbosity)
 
-        print_v2("\ndp_search path:", verbosity=self._cfg.verbosity)
-        print_v2(str(plan_from_qpath(search_qpath, problem)), verbosity=self._cfg.verbosity)
-
         # return if not anytime mode and search path is valid, or out of time
         if time_is_exceeded():
             print_v2(
@@ -397,8 +394,6 @@ class CppFlowPlanner(Planner):
             print_v2("dp_search path is valid and anytime mode is disabled, returning", verbosity=self._cfg.verbosity)
             return return_(search_qpath)
 
-        assert search_qpath.shape[0] == problem.target_path.shape[0]
-
         # Run optimization
         # TODO(@jstmn): Handle the `initial_configuration` during optimization. This should be a fixed value that
         # impacts the gradient of the trajectory.
@@ -408,7 +403,7 @@ class CppFlowPlanner(Planner):
                 optimization_result = run_lm_optimization(
                     problem,
                     search_qpath,
-                    max_n_steps=50,
+                    max_n_steps=75,
                     tmax_sec=self._cfg.tmax_sec - (time() - t0),
                     return_if_valid_after_n_steps=int(1e8),
                     convergence_threshold=OPTIMIZATION_CONVERGENCE_THRESHOLD,
@@ -419,10 +414,10 @@ class CppFlowPlanner(Planner):
                 optimization_result = run_lm_optimization(
                     problem,
                     search_qpath,
+                    max_n_steps=20,
                     tmax_sec=self._cfg.tmax_sec - (time() - t0),
-                    max_n_steps=100,
                     return_if_valid_after_n_steps=0,
-                    convergence_threshold=0.1,
+                    convergence_threshold=1e6,
                     results_df=results_df,
                     verbosity=self._cfg.verbosity,
                 )

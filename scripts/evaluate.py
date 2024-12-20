@@ -22,7 +22,7 @@ torch.set_printoptions(linewidth=120)
 set_seed()
 
 PLANNERS = {
-    "CppFlowAnytime": CppFlowPlanner,
+    "CppFlow": CppFlowPlanner,
     "PlannerSearcher": PlannerSearcher,
 }
 
@@ -232,36 +232,36 @@ Problems:
 
 Example usage:
 
-python scripts/evaluate.py --all_1 --planner CppFlowAnytime
+python scripts/evaluate.py --all_1 --planner CppFlow
 python scripts/evaluate.py --all_2 --save_to_benchmarking
 
-python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch_arm__circle --visualize
-python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch_arm__hello --visualize
-python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch_arm__rot_yz --visualize
-python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch_arm__rot_yz2 --visualize
-python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch_arm__s --visualize
-python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch_arm__square --visualize
-python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch__circle --visualize
-python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch__hello --visualize
-python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch__rot_yz --visualize
-python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch__rot_yz2 --visualize
-python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch__s --visualize
-python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch__square --visualize
-python scripts/evaluate.py --planner CppFlowAnytime --problem=panda__1cube --visualize
-python scripts/evaluate.py --planner CppFlowAnytime --problem=panda__2cubes --visualize
-python scripts/evaluate.py --planner CppFlowAnytime --problem=panda__flappy_bird --visualize
+python scripts/evaluate.py --planner CppFlow --problem=fetch_arm__circle --visualize
+python scripts/evaluate.py --planner CppFlow --problem=fetch_arm__hello --visualize
+python scripts/evaluate.py --planner CppFlow --problem=fetch_arm__rot_yz --visualize
+python scripts/evaluate.py --planner CppFlow --problem=fetch_arm__rot_yz2 --visualize
+python scripts/evaluate.py --planner CppFlow --problem=fetch_arm__s --visualize
+python scripts/evaluate.py --planner CppFlow --problem=fetch_arm__square --visualize
+python scripts/evaluate.py --planner CppFlow --problem=fetch__circle --visualize
+python scripts/evaluate.py --planner CppFlow --problem=fetch__hello --visualize
+python scripts/evaluate.py --planner CppFlow --problem=fetch__rot_yz --visualize
+python scripts/evaluate.py --planner CppFlow --problem=fetch__rot_yz2 --visualize
+python scripts/evaluate.py --planner CppFlow --problem=fetch__s --visualize
+python scripts/evaluate.py --planner CppFlow --problem=fetch__square --visualize
+python scripts/evaluate.py --planner CppFlow --problem=panda__1cube --visualize
+python scripts/evaluate.py --planner CppFlow --problem=panda__2cubes --visualize
+python scripts/evaluate.py --planner CppFlow --problem=panda__flappy_bird --visualize
 
-python scripts/evaluate.py --planner CppFlowAnytime --problem=fetch_arm__hello_mini --visualize --use_fixed_initial_configuration
+python scripts/evaluate.py --planner CppFlow --problem=fetch_arm__hello_mini --visualize --use_fixed_initial_configuration
 
-python scripts/evaluate.py --planner CppFlowAnytime --problem=panda__1cube_mini --plan_filepath=many_env_collisions[0].pt
-python scripts/evaluate.py --planner CppFlowAnytime --problem=panda__1cube_mini --plot --use_fixed_initial_configuration
-python scripts/evaluate.py --planner CppFlowAnytime --problem=panda__1cube_mini
+python scripts/evaluate.py --planner CppFlow --problem=panda__1cube_mini --plan_filepath=many_env_collisions[0].pt
+python scripts/evaluate.py --planner CppFlow --problem=panda__1cube_mini --plot --use_fixed_initial_configuration
+python scripts/evaluate.py --planner CppFlow --problem=panda__1cube_mini
 """
 
 
 def main(args):
     planner_settings_dict = {
-        "CppFlowAnytime": PlannerSettings(
+        "CppFlow": PlannerSettings(
             verbosity=2,
             k=175,
             tmax_sec=5.0,
@@ -270,7 +270,7 @@ def main(args):
             do_rerun_if_optimization_fails=False,
             do_return_search_path_mjac=False,
         ),
-        "CppFlowAnytime_fixed_q0": PlannerSettings(
+        "CppFlow_fixed_q0": PlannerSettings(
             verbosity=2,
             k=175,
             tmax_sec=3.0,

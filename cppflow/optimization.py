@@ -164,7 +164,6 @@ def run_lm_alternating_loss(
         levenberg_marquardt_only_pose(): 0.017729759216308594 sec for pose-only step
         levenberg_marquardt_full():      0.03213906288146973 sec for pose-only step
     """
-    assert (max_n_steps is None) == (return_if_valid_after_n_steps is None)
     if tmax_sec is None:
         assert (max_n_steps is not None) and (return_if_valid_after_n_steps is not None)
         assert return_if_valid_after_n_steps <= max_n_steps
@@ -228,8 +227,7 @@ def run_lm_alternating_loss(
     # TODO: verify that no code is running unnecessarily during execution
 
     t0 = time()
-    i = 0
-    while True:
+    for i in range(max_n_steps):
         printc("i:", i)
 
         # printout metrics for current x
@@ -277,8 +275,10 @@ def run_lm_alternating_loss(
         if pose_pos_valid and pose_rot_valid:
             if not converged and len(tls_post_differencing) > 0:
                 diff = abs(tl_new - tls_post_differencing[-1])
-                tls_post_differencing_delta_idxs.append(i)
-                tls_post_differencing_deltas.append(diff)
+                if return_residuals:
+                    tls_post_differencing_delta_idxs.append(i)
+                    tls_post_differencing_deltas.append(diff)
+
                 printc("  diff:", diff)
                 if diff < convergence_threshold:
                     printc(f"  converged after {i} steps - diff={diff} < {convergence_threshold}")
@@ -342,11 +342,16 @@ def run_lm_alternating_loss(
             else:
                 printc(make_text_green_or_red(f"  tmax_sec={tmax_sec} reached, but no valid trajectory found", False))
             break
-        elif i > max_n_steps and last_valid is None:
-            printc(make_text_green_or_red(f"  no valid solution found after {max_n_steps} steps, breaking", False))
-            break
 
-        i += 1
+        if last_valid is not None:
+            if i > return_if_valid_after_n_steps:
+                printc(make_text_green_or_red(f"  returning valid trajectory after {i} steps (i:{i} > return_if_valid_after_n_steps:{return_if_valid_after_n_steps})", True))
+                break
+
+            if i > max_n_steps:
+                printc(make_text_green_or_red(f"  no valid solution found after {max_n_steps} steps, breaking", False))
+                break
+
 
     printc(f"{time() - t0} sec for {i+1} optimization steps  -->  {(time() - t0)/(i+1)} s/step")
     x_return = last_valid if last_valid is not None else opt_state.x
