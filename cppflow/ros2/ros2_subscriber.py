@@ -176,10 +176,10 @@ class SubscriberNode(Node):
                 obstacles_cuboids=[],
                 obstacles_klampt=[],
             )
-            self.get_logger().info("target-path cumulative positional-change, cm:        ", problem.path_length_cumultive_positional_change_cm)
-            self.get_logger().info("target-path cumulative rotational-change, deg:       ", problem.path_length_cumulative_rotational_change_deg)
-            self.get_logger().info("target-path mean positional change per waypoint, cm: ", problem.path_length_cumultive_positional_change_cm / problem.n_timesteps)
-            self.get_logger().info("target-path mean rotational change per waypoint, deg:", problem.path_length_cumulative_rotational_change_deg / problem.n_timesteps)
+            self.get_logger().info(f"target-path cumulative positional-change, cm:         {problem.path_length_cumultive_positional_change_cm}")
+            self.get_logger().info(f"target-path cumulative rotational-change, deg:        {problem.path_length_cumulative_rotational_change_deg}")
+            self.get_logger().info(f"target-path mean positional change per waypoint, cm:  {problem.path_length_cumultive_positional_change_cm / problem.n_timesteps}")
+            self.get_logger().info(f"target-path mean rotational change per waypoint, deg: {problem.path_length_cumulative_rotational_change_deg / problem.n_timesteps}")
         except AssertionError as e:
             return specify_malformed_query(f"Creating 'Problem' dataclass failed: {e}")
 

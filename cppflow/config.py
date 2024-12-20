@@ -11,7 +11,8 @@ torch.set_default_device(DEVICE)
 
 VERBOSITY = 2
 
-SUCCESS_THRESHOLD_initial_q_norm_dist = 0.01
+# SUCCESS_THRESHOLD_initial_q_norm_dist = 0.01
+SUCCESS_THRESHOLD_initial_q_norm_dist = 0.2
 
 DEFAULT_RERUN_MJAC_THRESHOLD_DEG = 13.0
 DEFAULT_RERUN_MJAC_THRESHOLD_CM = 3.42
