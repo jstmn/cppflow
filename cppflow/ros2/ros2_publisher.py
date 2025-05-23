@@ -75,7 +75,7 @@ class CppFlowQueryClient(Node):
         with resources.open_binary("cppflow.ros2.resources", "CppFlowQuery_request.bin") as f:
             request = deserialize_message(f.read(), CppFlowQuery.Request)
             request.verbosity = 2
-        self.get_logger().info(f"Loaded cached problem request 'CppFlowQuery_request.bin'")
+        self.get_logger().info("Loaded cached problem request 'CppFlowQuery_request.bin'")
         self._send_planning_request(request)
 
     def send_dummy_problem_planning_request(self):
@@ -143,7 +143,7 @@ class CppFlowQueryClient(Node):
         rclpy.spin_until_future_complete(self, future)
         try:
             response = future.result()
-            self.get_logger().info(f"Received CppFlowQuery.Response")
+            self.get_logger().info("Received CppFlowQuery.Response")
             for i, (trajectory, success, error) in enumerate(
                 zip(response.trajectories, response.success, response.errors)
             ):

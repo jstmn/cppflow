@@ -21,7 +21,6 @@ from cppflow.evaluation_utils import (
 from cppflow.collision_detection import (
     self_colliding_configs_klampt,
     env_colliding_configs_klampt,
-    env_colliding_configs_capsule,
 )
 from cppflow.data_types import Constraints
 
@@ -547,7 +546,7 @@ class LmResidualFns:
         #
         assert not (
             pms.differencing_do_scale_satisfied and pms.differencing_do_ignore_satisfied
-        ), f"use one or the other, not both"
+        ), "use one or the other, not both"
         if pms.use_differencing:
             t0 = time()
             r_differencing = LmResidualFns._get_residual_differencing(robot, x)

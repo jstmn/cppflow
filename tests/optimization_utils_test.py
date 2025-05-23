@@ -3,8 +3,7 @@ import unittest
 import torch
 from jrl.robots import Panda, Fetch
 
-from cppflow.problem import problem_from_filename
-from cppflow.utils import set_seed, to_torch, make_text_green_or_red
+from cppflow.utils import set_seed, make_text_green_or_red
 from cppflow.optimization_utils import (
     LmResidualFns,
     OptimizationParameters,
@@ -12,7 +11,6 @@ from cppflow.optimization_utils import (
     _get_prismatic_and_revolute_row_mask,
     _get_rotation_and_position_row_mask,
 )
-
 
 pi = torch.pi
 torch.set_printoptions(linewidth=300, sci_mode=False, precision=6, edgeitems=17)
@@ -65,7 +63,7 @@ class OptimizationUtilsTest(unittest.TestCase):
     #   TESTS
     #
 
-    # python tests/optimization_utils_test.py OptimizationUtilsTest.test__get_prismatic_and_revolute_row_mask
+    # uv run python tests/optimization_utils_test.py OptimizationUtilsTest.test__get_prismatic_and_revolute_row_mask
     def test__get_prismatic_and_revolute_row_mask(self):
         """Test that _get_prismatic_and_revolute_row_mask() is returning correct masks"""
         expected_revolute = torch.tensor(
@@ -108,7 +106,7 @@ class OptimizationUtilsTest(unittest.TestCase):
         torch.testing.assert_close(expected_revolute, revolute_rows)
         torch.testing.assert_close(expected_prismatic, prismatic_rows)
 
-    # python tests/optimization_utils_test.py OptimizationUtilsTest.test___get_rotation_and_position_row_mask
+    # uv run python tests/optimization_utils_test.py OptimizationUtilsTest.test___get_rotation_and_position_row_mask
     def test___get_rotation_and_position_row_mask(self):
         expected_rotation = torch.tensor(
             [True, True, True, False, False, False, True, True, True, False, False, False], dtype=torch.bool
@@ -120,7 +118,7 @@ class OptimizationUtilsTest(unittest.TestCase):
         torch.testing.assert_close(expected_rotation, rotation_rows)
         torch.testing.assert_close(expected_position, position_rows)
 
-    # python tests/optimization_utils_test.py OptimizationUtilsTest.test__scale_down_rows_from_r_J_differencing_below_error
+    # uv run python tests/optimization_utils_test.py OptimizationUtilsTest.test__scale_down_rows_from_r_J_differencing_below_error
     def test__scale_down_rows_from_r_J_differencing_below_error(self):
         set_seed()
 
@@ -213,7 +211,7 @@ class OptimizationUtilsTest(unittest.TestCase):
         torch.testing.assert_close(J_expected, J_returned)
         torch.testing.assert_close(r_expected, r_returned)
 
-    # python tests/optimization_utils_test.py OptimizationUtilsTest.test__scale_down_rows_from_r_J_differencing_below_error_with_shift
+    # uv run python tests/optimization_utils_test.py OptimizationUtilsTest.test__scale_down_rows_from_r_J_differencing_below_error_with_shift
     def test__scale_down_rows_from_r_J_differencing_below_error_with_shift(self):
         """Test that _scale_down_rows_from_r_J_differencing_below_error() works correctly with shift_invalid_to_threshold=True"""
 
@@ -306,7 +304,7 @@ class OptimizationUtilsTest(unittest.TestCase):
         torch.testing.assert_close(J_expected, J_returned)
         torch.testing.assert_close(r_expected, r_returned)
 
-    # python tests/optimization_utils_test.py OptimizationUtilsTest.test__scale_down_rows_from_r_J_differencing_below_error_all_revolute
+    # uv run python tests/optimization_utils_test.py OptimizationUtilsTest.test__scale_down_rows_from_r_J_differencing_below_error_all_revolute
     def test__scale_down_rows_from_r_J_differencing_below_error_all_revolute(self):
         set_seed()
 
@@ -342,7 +340,7 @@ class OptimizationUtilsTest(unittest.TestCase):
             )
         )
 
-    # python tests/optimization_utils_test.py OptimizationUtilsTest.test__get_r_and_J__pose
+    # uv run python tests/optimization_utils_test.py OptimizationUtilsTest.test__get_r_and_J__pose
     def test__get_r_and_J__pose(self):
         opt_params = OptimizationParameters(
             # General
@@ -403,7 +401,7 @@ class OptimizationUtilsTest(unittest.TestCase):
         _, r = LmResidualFns.get_r_and_J(opt_params, self.fetch, qs, target_path)
         torch.testing.assert_close(expected, r.pose)
 
-    # python tests/optimization_utils_test.py OptimizationUtilsTest.test__scale_down_rows_from_r_J_pose_below_error
+    # uv run python tests/optimization_utils_test.py OptimizationUtilsTest.test__scale_down_rows_from_r_J_pose_below_error
     def test__scale_down_rows_from_r_J_pose_below_error(self):
         """Test that _scale_down_rows_from_r_J_pose_below_error() is working as expected"""
         set_seed()

@@ -22,3 +22,6 @@ notebooks/images/*/
 notebooks/reports/*/
 PLANNER_RESULTS*.md
 notebooks/*.csv
+.ruff_cache/
+.venv/
+.pytest_cache/

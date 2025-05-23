@@ -345,13 +345,17 @@ def run_lm_alternating_loss(
 
         if last_valid is not None:
             if i > return_if_valid_after_n_steps:
-                printc(make_text_green_or_red(f"  returning valid trajectory after {i} steps (i:{i} > return_if_valid_after_n_steps:{return_if_valid_after_n_steps})", True))
+                printc(
+                    make_text_green_or_red(
+                        f"  returning valid trajectory after {i} steps (i:{i} > return_if_valid_after_n_steps:{return_if_valid_after_n_steps})",
+                        True,
+                    )
+                )
                 break
 
             if i > max_n_steps:
                 printc(make_text_green_or_red(f"  no valid solution found after {max_n_steps} steps, breaking", False))
                 break
-
 
     printc(f"{time() - t0} sec for {i+1} optimization steps  -->  {(time() - t0)/(i+1)} s/step")
     x_return = last_valid if last_valid is not None else opt_state.x

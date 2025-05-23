@@ -18,7 +18,7 @@ np.set_printoptions(linewidth=500)
 
 
 class SearchTest(unittest.TestCase):
-    # python tests/search_test.py SearchTest.test_joint_limit_almost_violations
+    # uv run python tests/search_test.py SearchTest.test_joint_limit_almost_violations
     def test_joint_limit_almost_violations(self):
         robot = Fetch()
         # qs = torch.zeros((1, 3, 8)) # [k x ntimesteps x n_dofs]

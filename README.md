@@ -9,39 +9,40 @@ Note: This project uses the `w,x,y,z` format for quaternions.
 
 ## Installation
 
-python3.8 is required
 ```
-poetry install
-# note: you can do 'poetry install --without dev' to exclude some non essential functionality
+git clone https://github.com/jstmn/cppflow.git && cd cppflow
+uv sync
+uv pip install -e .
 ```
 
 ## Getting started
 
 Generate a plan for a single problem 
 ``` bash
+
 # Problems:
-#  - fetch_arm__circle
-#  - fetch_arm__hello
-#  - fetch_arm__rot_yz
-#  - fetch_arm__s
-#  - fetch_arm__square
 #  - fetch__circle
 #  - fetch__hello
 #  - fetch__rot_yz
 #  - fetch__s
 #  - fetch__square
+#  - fetch_arm__circle
+#  - fetch_arm__hello
+#  - fetch_arm__rot_yz
+#  - fetch_arm__s
+#  - fetch_arm__square
 #  - panda__flappy_bird
 #  - panda__2cubes
 #  - panda__1cube
 
-# you can replace 'fetch_arm__circle' with any of the problems above
-python scripts/evaluate.py --planner CppFlowPlanner --problem=fetch_arm__circle --visualize
+# you can replace 'fetch__hello' with any of the problems listed above
+uv run python scripts/evaluate.py --planner CppFlow --problem=fetch__hello --visualize
 ```
 
 Recreate the results from the paper:
 ``` bash
 git checkout 2b6ad3097ad06af17e8d7eacdff78bbc98a1c3be
-python scripts/benchmark.py --planner_name=CppFlowPlanner
+uv run python scripts/benchmark.py --planner_name=CppFlowPlanner
 ```
 
 

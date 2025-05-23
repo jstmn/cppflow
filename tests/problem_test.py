@@ -1,7 +1,6 @@
 import unittest
 
 from cppflow.problem import problem_from_filename, Problem
-from cppflow.utils import to_torch
 
 import numpy as np
 

@@ -3,11 +3,13 @@
 # https://dev.to/adamlombard/vscode-setting-line-lengths-in-the-black-python-code-formatter-1g62
 
 echo "_____________"
-echo "Running black"
-python -m black *.py --line-length=120 --target-version=py38 --preview
-python -m black **/*.py --line-length=120 --target-version=py38 --preview
-python -m black cppflow/ros2/*.py --line-length=120 --target-version=py38 --preview
+echo "Running ruff"
+echo ""
+uv run ruff check *.py --fix
+uv run ruff check **/*.py --fix
+uv run ruff check cppflow/ros2/*.py --fix
 
 echo "______________"
 echo "Running pylint"
-python -m pylint --ignore cppflow/latent_optimization.py cppflow/*.py
+echo ""
+uv run python -m pylint --ignore cppflow/latent_optimization.py cppflow/*.py

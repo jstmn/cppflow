@@ -85,8 +85,8 @@ def path_from_spaced_waypoints(waypoints: List[Tuple[List, List]], output_filepa
 
 """ Example usage
 
-python scripts/create_path.py rot_yz2 rot_yz2.csv
-python scripts/create_path.py circle2 circle2.csv
+uv run python scripts/create_path.py rot_yz2 rot_yz2.csv
+uv run python scripts/create_path.py circle2 circle2.csv
 """
 
 if __name__ == "__main__":

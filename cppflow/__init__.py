@@ -10,7 +10,6 @@ from . import visualization
 from . import data_types
 from . import data_type_utils
 
-
 __all__ = [
     "collision_detection",
     "evaluation_utils",

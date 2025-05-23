@@ -8,7 +8,6 @@ import torch
 
 from cppflow.config import DEVICE
 
-
 # =================================
 #   ==  Trajectory validation  ==
 #
@@ -55,7 +54,7 @@ def errors_are_below_threshold(
 
     mjac_rev_valid = qdeltas_revolute_deg.abs().max() < max_allowed_mjac_deg
     mjac_pris_valid = (
-        qdeltas_prismatic_cm.abs().max() < max_allowed_mjac_deg if qdeltas_prismatic_cm.numel() > 0 else True
+        qdeltas_prismatic_cm.abs().max() < max_allowed_mjac_cm if qdeltas_prismatic_cm.numel() > 0 else True
     )
     if verbosity > 0:
         if not mjac_rev_valid:
@@ -66,7 +65,7 @@ def errors_are_below_threshold(
         if not mjac_pris_valid:
             print(
                 f"errors_are_below_threshold() | mjac_pris is invalid: {qdeltas_prismatic_cm.abs().max():.3f} >"
-                f" {max_allowed_mjac_deg:.3f}"
+                f" {max_allowed_mjac_cm:.3f}"
             )
     return pose_pos_valid and pose_rot_valid and mjac_rev_valid and mjac_pris_valid, (
         pose_pos_valid,

@@ -263,7 +263,7 @@ class PlannerTest(unittest.TestCase):
         self.assertEqual(latent.shape, (125, 9))
         self.assert_tensor_is_unique(latent)
 
-    # python tests/planners_test.py PlannerTest.test_use_initial_configuration
+    # uv run python tests/planners_test.py PlannerTest.test_use_initial_configuration
     def test_use_initial_configuration(self):
 
         # Create a the planner

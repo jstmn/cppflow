@@ -26,11 +26,10 @@ from cppflow.config import (
 )
 from cppflow.search import dp_search
 from cppflow.optimization import run_lm_optimization
-from cppflow.data_types import Constraints, TimingData, PlannerSettings, PlannerResult, Problem
+from cppflow.data_types import TimingData, PlannerSettings, PlannerResult, Problem
 from cppflow.data_type_utils import plan_from_qpath
 from cppflow.collision_detection import qpaths_batched_self_collisions, qpaths_batched_env_collisions
 from cppflow.evaluation_utils import get_mjacs
-
 
 ROBOT_TO_IKFLOW_MODEL = {
     # --- Panda

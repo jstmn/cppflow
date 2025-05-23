@@ -11,8 +11,8 @@ import torch
 import pandas as pd
 
 from cppflow.planners import PlannerSearcher, CppFlowPlanner, Planner
-from cppflow.data_types import PlannerSettings, PlannerResult, TimingData, PlannerSettings, Constraints, Problem
-from cppflow.data_type_utils import problem_from_filename, get_all_problems
+from cppflow.data_types import PlannerResult, TimingData, PlannerSettings, Constraints, Problem
+from cppflow.data_type_utils import problem_from_filename
 from cppflow.utils import set_seed, to_torch
 from cppflow.config import DEVICE, SELF_COLLISIONS_IGNORED, ENV_COLLISIONS_IGNORED, DEBUG_MODE_ENABLED
 from cppflow.visualization import visualize_plan, plot_plan
@@ -51,8 +51,8 @@ PD_COLUMN_NAMES = [
 CONSTRAINTS = Constraints(
     max_allowed_position_error_cm=0.01,  # 0.1mm
     max_allowed_rotation_error_deg=0.1,
-    max_allowed_mjac_deg=3.0,
-    max_allowed_mjac_cm=0.5,
+    max_allowed_mjac_deg=7.0,  # from the paper
+    max_allowed_mjac_cm=2.0,  # from the paper
 )
 
 
@@ -111,21 +111,21 @@ def eval_planners_on_problem(settings_dict: Dict, save_to_benchmarking: bool = T
         now_str = datetime.now().strftime("%m.%d-%H:%M")
         df_all.to_csv(os.path.join(BENCHMARKING_DIR, f"results__{now_str}.csv"))
         with open(os.path.join(BENCHMARKING_DIR, f"results__{now_str}__params.md"), "a") as f:
-            cli_input = "python " + " ".join(sys.argv)
-            f.write(f"# Parameters")
+            cli_input = "uv run python " + " ".join(sys.argv)
+            f.write("# Parameters")
             f.write(f"\n\ndt: {now_str} | cli_input: `{cli_input}`\n")
-            f.write(f"\n\nparams:\n")
+            f.write("\n\nparams:\n")
             for k, v in settings_dict.__dict__.items():
                 if k[0] == "_":
                     continue
                 f.write(f"- {k}: `{v}`\n")
-            f.write(f"\n\n")
-            f.write(f"\n\ncomputer:\n")
+            f.write("\n\n")
+            f.write("\n\ncomputer:\n")
             f.write(f"- hostname: `{socket.gethostname()}`\n")
             f.write(f"- gpu: `{torch.cuda.get_device_name(device=DEVICE)}`\n")
             f.write(f"- #cpus: `{multiprocessing.cpu_count()}`\n")
             f.write(f"- ram size: `{psutil.virtual_memory().total / (1024*1024*1024)}` gb\n")
-            f.write(f"\n\n")
+            f.write("\n\n")
 
 
 def eval_planner_on_problems(planner_name: str, planner_settings: PlannerSettings):
@@ -163,7 +163,7 @@ def eval_planner_on_problems(planner_name: str, planner_settings: PlannerSetting
 
     dt = datetime.now().strftime("%d.%H:%M")
     with open(f"PLANNER_RESULTS - {planner_name} - {dt}.md", "w") as f:
-        cli_input = "python " + " ".join(sys.argv)
+        cli_input = "uv run python " + " ".join(sys.argv)
         f.write(f"\n\n**{dt}** | Generated with `{cli_input}`")
         f.write(f"\n\nPlanner: **{planner.name}**")
         f.write(f"\n\nparams: `{planner_settings}`\n\n")
@@ -176,7 +176,7 @@ def eval_planner_on_problems(planner_name: str, planner_settings: PlannerSetting
         f.write(valid_text)
 
         # df_success
-        f.write(f"\n\n**Successful plans**:\n\n")
+        f.write("\n\n**Successful plans**:\n\n")
         df_success = df[df["Valid plan"] != "`false`"].copy()
         df_success = df_success.drop(
             [
@@ -191,7 +191,7 @@ def eval_planner_on_problems(planner_name: str, planner_settings: PlannerSetting
         f.write(df_success.to_markdown())
 
         # df_failed
-        f.write(f"\n\n**Failed plans**:\n\n")
+        f.write("\n\n**Failed plans**:\n\n")
         df_failed = df[df["Valid plan"] == "`false`"].copy()
         df_failed = df_failed.drop(["Valid plan"], axis=1)
         f.write(df_failed.to_markdown())
@@ -232,30 +232,30 @@ Problems:
 
 Example usage:
 
-python scripts/evaluate.py --all_1 --planner CppFlow
-python scripts/evaluate.py --all_2 --save_to_benchmarking
+uv run python scripts/evaluate.py --all_1 --planner CppFlow
+uv run python scripts/evaluate.py --all_2 --save_to_benchmarking
 
-python scripts/evaluate.py --planner CppFlow --problem=fetch_arm__circle --visualize
-python scripts/evaluate.py --planner CppFlow --problem=fetch_arm__hello --visualize
-python scripts/evaluate.py --planner CppFlow --problem=fetch_arm__rot_yz --visualize
-python scripts/evaluate.py --planner CppFlow --problem=fetch_arm__rot_yz2 --visualize
-python scripts/evaluate.py --planner CppFlow --problem=fetch_arm__s --visualize
-python scripts/evaluate.py --planner CppFlow --problem=fetch_arm__square --visualize
-python scripts/evaluate.py --planner CppFlow --problem=fetch__circle --visualize
-python scripts/evaluate.py --planner CppFlow --problem=fetch__hello --visualize
-python scripts/evaluate.py --planner CppFlow --problem=fetch__rot_yz --visualize
-python scripts/evaluate.py --planner CppFlow --problem=fetch__rot_yz2 --visualize
-python scripts/evaluate.py --planner CppFlow --problem=fetch__s --visualize
-python scripts/evaluate.py --planner CppFlow --problem=fetch__square --visualize
-python scripts/evaluate.py --planner CppFlow --problem=panda__1cube --visualize
-python scripts/evaluate.py --planner CppFlow --problem=panda__2cubes --visualize
-python scripts/evaluate.py --planner CppFlow --problem=panda__flappy_bird --visualize
+uv run python scripts/evaluate.py --planner CppFlow --problem=fetch_arm__circle --visualize
+uv run python scripts/evaluate.py --planner CppFlow --problem=fetch_arm__hello --visualize
+uv run python scripts/evaluate.py --planner CppFlow --problem=fetch_arm__rot_yz --visualize
+uv run python scripts/evaluate.py --planner CppFlow --problem=fetch_arm__rot_yz2 --visualize
+uv run python scripts/evaluate.py --planner CppFlow --problem=fetch_arm__s --visualize
+uv run python scripts/evaluate.py --planner CppFlow --problem=fetch_arm__square --visualize
+uv run python scripts/evaluate.py --planner CppFlow --problem=fetch__circle --visualize
+uv run python scripts/evaluate.py --planner CppFlow --problem=fetch__hello --visualize
+uv run python scripts/evaluate.py --planner CppFlow --problem=fetch__rot_yz --visualize
+uv run python scripts/evaluate.py --planner CppFlow --problem=fetch__rot_yz2 --visualize
+uv run python scripts/evaluate.py --planner CppFlow --problem=fetch__s --visualize
+uv run python scripts/evaluate.py --planner CppFlow --problem=fetch__square --visualize
+uv run python scripts/evaluate.py --planner CppFlow --problem=panda__1cube --visualize
+uv run python scripts/evaluate.py --planner CppFlow --problem=panda__2cubes --visualize
+uv run python scripts/evaluate.py --planner CppFlow --problem=panda__flappy_bird --visualize
 
-python scripts/evaluate.py --planner CppFlow --problem=fetch_arm__hello_mini --visualize --use_fixed_initial_configuration
+uv run python scripts/evaluate.py --planner CppFlow --problem=fetch_arm__hello_mini --visualize --use_fixed_initial_configuration
 
-python scripts/evaluate.py --planner CppFlow --problem=panda__1cube_mini --plan_filepath=many_env_collisions[0].pt
-python scripts/evaluate.py --planner CppFlow --problem=panda__1cube_mini --plot --use_fixed_initial_configuration
-python scripts/evaluate.py --planner CppFlow --problem=panda__1cube_mini
+uv run python scripts/evaluate.py --planner CppFlow --problem=panda__1cube_mini --plan_filepath=many_env_collisions[0].pt
+uv run python scripts/evaluate.py --planner CppFlow --problem=panda__1cube_mini --plot --use_fixed_initial_configuration
+uv run python scripts/evaluate.py --planner CppFlow --problem=panda__1cube_mini
 """
 
 
@@ -295,6 +295,7 @@ def main(args):
     if args.problem is not None:
         problem = problem_from_filename(CONSTRAINTS, args.problem)
         print(problem)
+        print(problem.constraints)
 
         if args.use_fixed_initial_configuration:
             problem.initial_configuration = get_initial_configuration()

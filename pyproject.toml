@@ -1,31 +1,33 @@
-[tool.poetry]
+[project]
 name = "cppflow"
 version = "0.1.0"
 description = ""
-authors = ["Jeremy Morgan <jsmorgan6@gmail.com>", "David Millard <dmillard@gmail.com>"]
-license = "MIT"
+requires-python = ">=3.10,<3.12"
+authors = [
+    { name="Jeremy Morgan", email="jsmorgan6@gmail.com" },
+    { name="David Millard", email="dmillard@gmail.com" }
+]
 readme = "README.md"
+dependencies = [
+    "jrl @ git+https://github.com/jstmn/jrl.git@ef4c2f6eb1ba84395ff0bb01d5b7713854df6908",
+    "ikflow @ git+https://github.com/jstmn/ikflow.git@19634d436eb805f22578b4c5b6526f96d91d0323",
+    "psutil>=7.0.0",
+    "ruff>=0.11.11",
+    "black>=25.1.0",
+    "pytest>=8.3.5",
+]
+
+[tool.setuptools.packages]
+find = { include = ["cppflow"], exclude = ["media", "examples", "notebooks"] }
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.package-data]
+cppflow = ["**/*.yaml", "**/*.csv", "paths/paths_torm/"]
 
 
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
 
-
-[tool.black]
+[tool.ruff]
 line-length = 120
-
-
-[tool.poetry.dependencies]
-python = ">=3.8.0,<3.11"
-jrl = { git = "https://github.com/jstmn/jrl.git", rev = "e08a900c4ef77d75a54446c193b4a49acfd3cbaf" }
-ikflow = { git = "https://github.com/jstmn/ikflow.git", rev = "815a281141d6f6e2c16f0ffe69dccf6f12676050" }
-psutil = "5.9.8"
-
-
-[tool.poetry.group.dev.dependencies]
-black = "^23.1.0"
-pylint = "^2.16.2"
-pandas = "1.5.3"
-tabulate = "0.9.0"
-pytest = "8.2.0"
+lint.ignore = ["E741"]

@@ -4,7 +4,7 @@ import traceback
 
 import rclpy
 from rclpy.node import Node
-from rclpy.serialization import serialize_message, deserialize_message
+from rclpy.serialization import serialize_message
 from cppflow_msgs.msg import CppFlowProblem
 from cppflow_msgs.srv import CppFlowQuery, CppFlowEnvironmentConfig
 from jrl.robot import Robot
@@ -143,10 +143,10 @@ class SubscriberNode(Node):
             return specify_malformed_query(
                 f"At least 3 waypoints are required per problem (only {len(request_problem.waypoints)} provided)"
             )
-        
+
         ndof = self.planner.robot.ndof
         settings = PLANNER_SETTINGS[PLANNER]
-        settings.tmax_sec = 0.9*request.max_planning_time_sec
+        settings.tmax_sec = 0.9 * request.max_planning_time_sec
         settings.verbosity = request.verbosity
         settings.anytime_mode_enabled = request.anytime_mode_enabled
         constraints = Constraints(
@@ -176,10 +176,18 @@ class SubscriberNode(Node):
                 obstacles_cuboids=[],
                 obstacles_klampt=[],
             )
-            self.get_logger().info(f"target-path cumulative positional-change, cm:         {problem.path_length_cumultive_positional_change_cm}")
-            self.get_logger().info(f"target-path cumulative rotational-change, deg:        {problem.path_length_cumulative_rotational_change_deg}")
-            self.get_logger().info(f"target-path mean positional change per waypoint, cm:  {problem.path_length_cumultive_positional_change_cm / problem.n_timesteps}")
-            self.get_logger().info(f"target-path mean rotational change per waypoint, deg: {problem.path_length_cumulative_rotational_change_deg / problem.n_timesteps}")
+            self.get_logger().info(
+                f"target-path cumulative positional-change, cm:         {problem.path_length_cumultive_positional_change_cm}"
+            )
+            self.get_logger().info(
+                f"target-path cumulative rotational-change, deg:        {problem.path_length_cumulative_rotational_change_deg}"
+            )
+            self.get_logger().info(
+                f"target-path mean positional change per waypoint, cm:  {problem.path_length_cumultive_positional_change_cm / problem.n_timesteps}"
+            )
+            self.get_logger().info(
+                f"target-path mean rotational change per waypoint, deg: {problem.path_length_cumulative_rotational_change_deg / problem.n_timesteps}"
+            )
         except AssertionError as e:
             return specify_malformed_query(f"Creating 'Problem' dataclass failed: {e}")
 
@@ -202,7 +210,6 @@ class SubscriberNode(Node):
             response.errors = [error_msg]
             self.get_logger().info(f"Planning failed with exception: '{error_msg}'")
             return response
-
 
         # Write output to 'response'
         plan = planning_result.plan

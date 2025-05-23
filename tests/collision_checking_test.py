@@ -12,7 +12,6 @@ from cppflow.collision_detection import (
     env_colliding_configs_capsule,
 )
 
-
 set_seed()
 
 

@@ -225,28 +225,43 @@ class Plan:
             return 0.0
         return torch.norm(self.provided_initial_configuration - self.q_path[0]).item()
 
-    @property
-    def is_valid(self) -> bool:
+    def is_valid_(self, verbose: bool = False) -> bool:
         joint_limits_violated, _ = joint_limits_exceeded(self.robot_joint_limits, self.q_path)
+        errs_below_thresh = errors_are_below_threshold(
+            self.constraints.max_allowed_position_error_cm,
+            self.constraints.max_allowed_rotation_error_deg,
+            self.constraints.max_allowed_mjac_deg,
+            self.constraints.max_allowed_mjac_cm,
+            self.positional_errors_cm,
+            self.rotational_errors_deg,
+            self.mjac_per_timestep_deg,
+            self.mjac_per_timestep_cm,
+        )[0]
         iv = (
             not joint_limits_violated
-            and errors_are_below_threshold(
-                self.constraints.max_allowed_position_error_cm,
-                self.constraints.max_allowed_rotation_error_deg,
-                self.constraints.max_allowed_mjac_deg,
-                self.constraints.max_allowed_mjac_cm,
-                self.positional_errors_cm,
-                self.rotational_errors_deg,
-                self.mjac_per_timestep_deg,
-                self.mjac_per_timestep_cm,
-            )[0]
+            and errs_below_thresh
             and self.self_colliding_per_ts.sum() == 0
             and self.env_colliding_per_ts.sum() == 0
             and self.initial_q_norm_dist < SUCCESS_THRESHOLD_initial_q_norm_dist
         )
+        if not verbose:
+            if isinstance(iv, torch.Tensor):
+                return iv.item()
+            return iv
+        # Verbose
+        s = ""
+        s += f"is_valid_ = {iv}\n"
+        s += f"errors_are_below_threshold(...) =      {errs_below_thresh}\n"
+        s += f"self.self_colliding_per_ts.sum() == 0: {self.self_colliding_per_ts.sum() == 0}\n"
+        s += f"self.env_colliding_per_ts.sum() == 0:  {self.env_colliding_per_ts.sum() == 0}\n"
+        s += f"self.initial_q_norm_dist < SUCCESS_THRESHOLD_initial_q_norm_dist: {self.initial_q_norm_dist < SUCCESS_THRESHOLD_initial_q_norm_dist}\n"
         if isinstance(iv, torch.Tensor):
-            return iv.item()
-        return iv
+            return iv.item(), s
+        return iv, s
+
+    @property
+    def is_valid(self) -> bool:
+        return self.is_valid_(verbose=False)
 
     def __str__(self) -> str:
         s = "Plan {\n"
@@ -271,10 +286,15 @@ class Plan:
             and env_coll_valid
             and initial_q_valid
         ), (
-            f"self.isvalid disagrees with manual calculation.\n  self.is_valid: {is_valid}\n  mjac_deg_valid:"
-            f" {mjac_deg_valid}\n  mjac_cm_valid: {mjac_cm_valid}\n  "
-            f" max_t_error_valid: {max_t_error_valid}\n  max_R_error_valid:"
-            f" {max_R_error_valid}\n  joint_limits_valid: {not joint_limits_violated}"
+            f"self.isvalid disagrees with manual calculation."
+            f"\nself.is_valid:      {is_valid}"
+            f"\nmjac_deg_valid:     {mjac_deg_valid}"
+            f"\nmjac_cm_valid:      {mjac_cm_valid}"
+            f"\nmax_t_error_valid:  {max_t_error_valid}"
+            f"\nmax_R_error_valid:  {max_R_error_valid}"
+            f"\njoint_limits_valid: {not joint_limits_violated}"
+            f"\n---"
+            f"\nself.is_valid={self.is_valid_(verbose=True)[1]}"
         )
         round_amt = 5
         s += f"  is_valid:         \t\t\t{make_text_green_or_red(is_valid, is_valid)}\n"
@@ -430,7 +450,7 @@ class Problem:
             torch.set_printoptions(precision=5, sci_mode=False)
             # NOTE: We assume that the initial configuration maps to some pose at t=-1, so it's alright if its a bit far
             # from pose[t=0]
-            max_translation_mm = 5*cm_to_mm(self.constraints.max_allowed_position_error_cm)
+            max_translation_mm = 5 * cm_to_mm(self.constraints.max_allowed_position_error_cm)
             assert (
                 len(self.initial_configuration.shape) == 2
             ), f"'initial_configuration' should be [1, ndof], is {self.initial_configuration.shape}"

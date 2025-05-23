@@ -9,9 +9,8 @@ import os
 import torch
 import pandas as pd
 
-from cppflow.planners import PlannerSearcher, CppFlowPlanner, Planner
-from cppflow.data_types import PlannerSettings, Constraints
-from cppflow.problem import ALL_PROBLEM_FILENAMES, get_problem_dict
+from cppflow.planners import PlannerSearcher, CppFlowPlanner
+from cppflow.data_types import ALL_PROBLEM_FILENAMES, get_problem_dict
 from cppflow.utils import set_seed
 from cppflow.config import SELF_COLLISIONS_IGNORED, ENV_COLLISIONS_IGNORED, DEBUG_MODE_ENABLED
 
@@ -115,17 +114,17 @@ def main():
     )
     with open(markdown_filepath, "w") as f:
         dt_str = datetime.now().strftime("%m.%d-%H:%M:%S")
-        cli_input = "python " + " ".join(sys.argv)
-        f.write(f"# Planner results")
+        cli_input = "uv run python " + " ".join(sys.argv)
+        f.write("# Planner results")
         f.write(f"\n\ndt: {dt_str} | cli_input: `{cli_input}`\n")
-        f.write(f"\n\nparams:\n")
+        f.write("\n\nparams:\n")
         for k, v in kwargs_dict.items():
             f.write(f"- {k}: `{v}`\n")
-        f.write(f"\n\n")
+        f.write("\n\n")
 
 
 """
-python scripts/benchmark.py --planner_name=CppFlowPlanner
+uv run python scripts/benchmark.py --planner_name=CppFlowPlanner
 """
 
 if __name__ == "__main__":

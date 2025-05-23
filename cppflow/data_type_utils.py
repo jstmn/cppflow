@@ -19,7 +19,6 @@ from cppflow.data_types import Problem, Plan, Constraints
 from cppflow import config
 from cppflow.utils import get_filepath, to_torch
 
-
 np.set_printoptions(suppress=True)
 
 ALL_PROBLEM_FILENAMES = [
