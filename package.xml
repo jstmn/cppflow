@@ -8,8 +8,6 @@
     <maintainer email="jsmorgan6@gmail.com">Jeremy Morgan</maintainer>
     <license>TODO: License declaration</license>
 
-    <depend>bdai_ros</depend>
-    <depend>bdai_ros2_wrappers</depend>
     <depend>rclpy</depend>
     <depend>std_msgs</depend>
     <depend>cppflow_msgs</depend>
